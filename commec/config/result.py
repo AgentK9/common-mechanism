@@ -34,6 +34,7 @@ from enum import StrEnum
 from importlib.metadata import version, PackageNotFoundError
 import pandas as pd
 from commec.tools.search_handler import SearchToolVersion
+from commec.config.constants import MINIMUM_QUERY_LENGTH, MAXIMUM_QUERY_LENGTH
 from commec import __version__ as COMMEC_VERSION
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,8 @@ class ScreenStatus(StrEnum):
 
     NULL = "-"
     SKIP = "Skip"
+    SKIP_SHORT = "Skip (too short)"
+    SKIP_LONG = "Skip (too long)"
     PASS = "Pass"
     CLEARED_WARN = "Warning (Cleared)"
     CLEARED_FLAG = "Flag (Cleared)"
@@ -71,6 +74,12 @@ class ScreenStatus(StrEnum):
             ScreenStatus.SKIP: (
                 "Screening step intentionally skipped (e.g. skipping taxonomy screen in FAST mode,"
                 " skipping low-concern screen when there are no flags to clear)"
+            ),
+            ScreenStatus.SKIP_SHORT: (
+                "Screening step intentionally skipped as query was too short"
+            ),
+            ScreenStatus.SKIP_LONG: (
+                "Screening step intentionally skipped as query was too long"
             ),
             ScreenStatus.PASS: "Query was not flagged in this screening step; biosecurity review may not be needed",
             ScreenStatus.CLEARED_WARN: (
@@ -95,13 +104,15 @@ class ScreenStatus(StrEnum):
         order = {
             ScreenStatus.NULL: 0,
             ScreenStatus.SKIP: 1,
-            ScreenStatus.PASS: 2,
-            ScreenStatus.CLEARED_WARN: 3,
-            ScreenStatus.CLEARED_FLAG: 4,
-            ScreenStatus.WARN: 5,
-            ScreenStatus.FLAG: 6,
-            ScreenStatus.STOP: 7,
-            ScreenStatus.ERROR: 8,
+            ScreenStatus.SKIP_SHORT: 2,
+            ScreenStatus.SKIP_LONG: 3,
+            ScreenStatus.PASS: 4,
+            ScreenStatus.CLEARED_WARN: 4,
+            ScreenStatus.CLEARED_FLAG: 5,
+            ScreenStatus.WARN: 6,
+            ScreenStatus.FLAG: 7,
+            ScreenStatus.STOP: 8,
+            ScreenStatus.ERROR: 10,
         }
         return order[self]
 
@@ -292,7 +303,9 @@ class Rationale(StrEnum):
     NO_HITS = ("No matches found during any stage of analysis. "
                 "Sequence risk is unknown, possibly generated in silico. ")
     NO_HITS_SKIP_NOTE = NO_HITS + "Matches may be found if re-run without skipping steps."
-    TOO_SHORT = "Query is too short, and was skipped."
+    SKIPPED = "Query was skipped."
+    TOO_LONG = f"Sequence is too long (must be at most {MAXIMUM_QUERY_LENGTH} bp)."
+    TOO_SHORT = f"Sequence is too short (must be at least {MINIMUM_QUERY_LENGTH} bp)."
 
     FLAG = " flags"
     WARN = " warnings"
@@ -312,7 +325,7 @@ class QueryScreenStatus:
     protein_taxonomy: ScreenStatus = ScreenStatus.NULL
     nucleotide_taxonomy: ScreenStatus = ScreenStatus.NULL
     low_concern: ScreenStatus = ScreenStatus.NULL
-    rationale : str = "-"
+    rationale : str = Rationale.NULL
 
     # Mapping between screen steps and the fields above
     STEP_TO_STATUS_FIELD = {
@@ -360,6 +373,11 @@ class QueryScreenStatus:
         # Never override an Error.
         if self.screen_status == ScreenStatus.ERROR:
             return
+        
+        # This is decided early enough to warrant never overriding.
+        if (self.screen_status == ScreenStatus.SKIP_LONG or 
+            self.screen_status == ScreenStatus.SKIP_SHORT):
+            return
 
         # Derive from the most important step statuses.
         self.screen_status = max(
@@ -380,11 +398,6 @@ class QueryScreenStatus:
         # If everything is happy, but we haven't hit anything, time to be suspicious...
         if (self.screen_status == ScreenStatus.PASS and query_data.no_hits_warning):
             self.screen_status = ScreenStatus.WARN
-            return
-
-        # If biorisk was skipped then it is skipped overall - likely query is too short...
-        if (self.biorisk == ScreenStatus.SKIP):
-            self.screen_status = ScreenStatus.SKIP
             return
 
 
@@ -571,12 +584,22 @@ class QueryResult:
             state.rationale = Rationale.ERROR + state.get_error_stepname()
             return
 
-        if state.screen_status == ScreenStatus.SKIP:
-            state.rationale = Rationale.TOO_SHORT
-            return
-
         if state.screen_status == ScreenStatus.STOP:
             state.rationale = Rationale.INCOMPLETE
+            return
+
+        # Handle all skips
+        # --------------------------------------------------------------------
+        if state.screen_status == ScreenStatus.SKIP_SHORT:
+            state.rationale = f"{Rationale.SKIPPED} {Rationale.TOO_SHORT}"
+            return
+
+        if state.screen_status == ScreenStatus.SKIP_LONG:
+            state.rationale = f"{Rationale.SKIPPED} {Rationale.TOO_LONG}"
+            return
+
+        if state.screen_status == ScreenStatus.SKIP:
+            state.rationale = f"{Rationale.SKIPPED}"
             return
 
         # Handle no hits warnings
@@ -705,11 +728,13 @@ class QueryResult:
         self.hits = dict(sorted_items_desc)
         self._update_step_flags(query_data)
 
-    def skip(self):
+    def skip(self, screen_skip: ScreenStatus = ScreenStatus.SKIP):
         """
         Called to skip this query, sets all recommendations to skip.
+        Sets the screen_status overall recommendation as provided.
+        (default SKIP)
         """
-        self.status.screen_status = ScreenStatus.SKIP
+        self.status.screen_status = screen_skip
         self.status.biorisk = ScreenStatus.SKIP
         self.status.protein_taxonomy = ScreenStatus.SKIP
         self.status.nucleotide_taxonomy = ScreenStatus.SKIP

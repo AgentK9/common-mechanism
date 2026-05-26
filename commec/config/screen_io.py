@@ -24,6 +24,7 @@ from commec.config.query import Query
 from commec.config.constants import (
     DEFAULT_CONFIG_YAML_PATH,
     MINIMUM_QUERY_LENGTH,
+    MAXIMUM_QUERY_LENGTH,
     MAXIMUM_FILENAME_SIZE,
     MAXIMUM_QUERY_NAME_LENGTH,
 )
@@ -126,7 +127,7 @@ class ScreenIO:
                                      f"Ensure that the first {MAXIMUM_QUERY_NAME_LENGTH} characters for each fasta record are unique.")
                 queries[query.name] = query
                 # Override the original cleaned fasta, with queries above a given length and updated names
-                if len(record.seq) > MINIMUM_QUERY_LENGTH:
+                if MINIMUM_QUERY_LENGTH < len(record.seq) <= MAXIMUM_QUERY_LENGTH:
                     # Creating new SeqRecord to avoid overwriting the seq_record object inside query and preserve the original seq id
                     updated_records.append(SeqRecord(record.seq, id=query.name, description=""))
             except Exception as e:
