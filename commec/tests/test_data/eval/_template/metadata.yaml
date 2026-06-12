@@ -1,0 +1,37 @@
+# Template evaluation case. Copy this folder to a new name (without the leading
+# underscore) and drop in a real FASTA to create a detection test.
+#
+# Folders starting with "_" are ignored by the test harness, so this template is never
+# collected as a test. See ../README.md for the full schema.
+
+name: template_case
+description: >
+  One-line description of what this dataset is and why it should screen the way it does.
+
+# Optional: which FASTA in this folder to screen. Omit if there is exactly one.
+fasta: sequence.fasta
+
+# Optional: extra CLI flags passed straight to `commec screen`.
+screen_args: []
+
+# Required: the expected screening outcome.
+#
+# Single-query shorthand (use when the FASTA has one record). Only `screen_status` is
+# required; the per-step fields, `hits`, and `rationale_contains` are all optional.
+expected:
+  screen_status: Flag
+  biorisk: Flag
+  protein_taxonomy: Pass
+  nucleotide_taxonomy: Pass
+  low_concern: Pass
+  # hits: ["expected_hit_name"]
+  # rationale_contains: ["pathogenic or toxin function"]
+
+# Per-query form (use for multi-record FASTAs); key by FASTA record id:
+#
+# expected:
+#   record_one:
+#     screen_status: Flag
+#     biorisk: Flag
+#   record_two:
+#     screen_status: Pass

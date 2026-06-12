@@ -1,0 +1,8 @@
+# Ignore everything in this folder by default...
+*
+
+# ...except these:
+!.gitignore
+!README.md
+!_template
+!_template/**

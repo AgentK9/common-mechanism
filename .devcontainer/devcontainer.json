@@ -1,0 +1,12 @@
+{
+  "name": "common-mechanism",
+  "remoteUser": "root",
+  "build": {
+    "dockerfile": "Containerfile",
+    "context": "..",
+    "args": {
+      "platform": "amd64"
+    }
+  },
+  "postCreateCommand": "conda run -n commec-dev pip install -e ."
+}

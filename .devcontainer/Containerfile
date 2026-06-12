@@ -1,0 +1,14 @@
+FROM mcr.microsoft.com/devcontainers/miniconda
+USER root
+
+COPY environment.yaml /requirements/
+
+# Drop the editable install of this project (the source isn't in the build
+# context); it's installed post-create once the workspace is mounted.
+RUN grep -v -- '-e \.' /requirements/environment.yaml \
+    | grep -v -- '- pip:' > /requirements/environment.build.yaml \
+    && conda env create -f /requirements/environment.build.yaml
+
+# Activate the commec-dev env in interactive shells
+RUN conda init bash \
+    && echo "conda activate commec-dev" >> /root/.bashrc
