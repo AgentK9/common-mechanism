@@ -31,5 +31,9 @@ venv/
 .pylintrc
 *:Zone.Identifier
 
+data/
+
 # test visual output
-commec/tests/test_data/functional.html
+commec/tests/test_data/functional.html# pixi environments
+.pixi/*
+!.pixi/config.toml

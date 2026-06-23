@@ -4,7 +4,7 @@ Unit tests for controlled rationale outcomes
 
 from commec.config.constants import MAXIMUM_QUERY_LENGTH, MINIMUM_QUERY_LENGTH
 from commec.config.result import Rationale, ScreenStatus
-from commec.tests.screen_factory import ScreenStep, ScreenTesterFactory
+from .screen_factory import ScreenStep, ScreenTesterFactory
 
 
 def test_hmmer(tmp_path):

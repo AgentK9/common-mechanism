@@ -9,7 +9,7 @@ from dataclasses import asdict
 
 from commec.config.json_io import encode_screen_data_to_json, get_screen_data_from_json
 from commec.config.result import ScreenResult, ScreenStatus, ScreenStep
-from commec.tests.screen_factory import ScreenTesterFactory
+from .screen_factory import ScreenTesterFactory
 from commec.utils.json_html_output import generate_html_from_screen_data
 
 DATABASE_DIRECTORY = os.path.join(os.path.dirname(__file__), "test_dbs/")
