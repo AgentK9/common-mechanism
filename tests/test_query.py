@@ -1,9 +1,9 @@
 import os
 import textwrap
 
+from needletail import Record
 import pytest
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
+
 
 from commec.config.query import Query, QueryTranslation
 
@@ -12,26 +12,26 @@ INPUT_QUERY = os.path.join(os.path.dirname(__file__), "test_data/single_record.f
 
 def test_get_frame_length():
     # 11 nt query
-    query = Query(SeqRecord(Seq("atgtgccatgg"), id="test"))
+    query = Query(Record(seq="atgtgccatgg", id="test"))
     assert 9 == query._get_frame_length(frame_offset=0)
     assert 9 == query._get_frame_length(frame_offset=1)
     assert 9 == query._get_frame_length(frame_offset=2)
 
     # 15 nt query
-    query = Query(SeqRecord(Seq("atgtgccatggatgc"), id="test"))
+    query = Query(Record(seq="atgtgccatggatgc", id="test"))
     assert 15 == query._get_frame_length(frame_offset=0)
     assert 12 == query._get_frame_length(frame_offset=1)
     assert 12 == query._get_frame_length(frame_offset=2)
 
     # 16 nt query
-    query = Query(SeqRecord(Seq("atgtgccatggatgca"), id="test"))
+    query = Query(Record(seq="atgtgccatggatgca", id="test"))
     assert 15 == query._get_frame_length(frame_offset=0)
     assert 15 == query._get_frame_length(frame_offset=1)
     assert 12 == query._get_frame_length(frame_offset=2)
 
 
 def test_translate_to_file(tmp_path):
-    query = Query(SeqRecord(Seq("atgtgccatgg"), id="test"))
+    query = Query(Record(seq="atgtgccatgg", id="test"))
 
     expected_output = textwrap.dedent(
         """\
@@ -66,7 +66,7 @@ def test_translate():
     Test translation from nucleotide to 6 frames of protein sequences.
     """
     # 11nt query
-    query = Query(SeqRecord(Seq("atgtgccatgg"), id="test"))
+    query = Query(Record(seq="atgtgccatgg", id="test"))
 
     # Input sequence: atgtgccatgg
     # Translations:
@@ -90,7 +90,7 @@ def test_translate():
     assert expected_translations == query.translations
 
     # 15nt query
-    query = Query(SeqRecord(Seq("acgcacctgatcgct"), id="test"))
+    query = Query(Record(seq="acgcacctgatcgct", id="test"))
 
     # Input sequence: acgcacctgatcgct
     # Translations:
@@ -156,7 +156,7 @@ def test_ambigious():
     # query = Query(SeqRecord(Seq("atntnccatgg"), id="test"))
     # query = Query(SeqRecord(Seq("ATGAARTAYGCNAAYGARACNABGGADCAHGAVACNTGG"), id="test"))
     query = Query(
-        SeqRecord(Seq("ATGAARTAYGCNAAYGARACMCCSGGWGTKATHGTDCCBGTV"), id="test")
+        Record(seq="ATGAARTAYGCNAAYGARACMCCSGGWGTKATHGTDCCBGTV", id="test")
     )
 
     expected_translations = [

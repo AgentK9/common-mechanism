@@ -30,10 +30,11 @@ from unittest.mock import patch
 
 import pytest
 import yaml
+from typer.testing import CliRunner
 
 from commec.config.json_io import get_screen_data_from_json
 from commec.config.result import QueryResult, ScreenResult, ScreenStatus
-from commec.screen import ScreenArgumentParser, add_args, run
+from commec.cli import commec
 
 # Root directory under which each subfolder is one evaluation case.
 EVAL_DIR = Path(__file__).parent / "test_data" / "eval"
@@ -238,7 +239,8 @@ def _run_screen(
 ) -> ScreenResult:
     """Run a real ``commec screen`` and return the parsed ScreenResult."""
     arguments = [
-        "commec-screen",
+        "commec",
+        "screen",
         str(fasta),
         "-d",
         str(db_dir),
@@ -248,11 +250,8 @@ def _run_screen(
     ]
     arguments.extend(screen_args)
 
-    with patch("sys.argv", arguments):
-        parser = ScreenArgumentParser()
-        add_args(parser)
-        args = parser.parse_args()
-        run(args)
+    runner = CliRunner()
+    result = runner.invoke(commec)
 
     # When -o is a directory, the output JSON is named after the input FASTA.
     output_json = output_dir / f"{fasta.stem}.output.json"

@@ -2,17 +2,18 @@ import argparse
 import os
 import textwrap
 
-from commec.flag import add_args, run
+from typer.testing import CliRunner
+
+from commec.cli import commec
 
 SCREEN_DIR = os.path.join(os.path.dirname(__file__), "test_data")
 
 
 def test_flag(tmp_path):
     """We are lazily writing tests for a full run of flag instead of unit tests."""
-    parser = argparse.ArgumentParser()
-    add_args(parser)
-    args = parser.parse_args([SCREEN_DIR, "-o", str(tmp_path), "-r"])
-    run(args)
+    runner = CliRunner()
+    
+    runner.invoke(commec, ["test", SCREEN_DIR, "-o", str(tmp_path), "-r"])
 
     # Check if the output file exists
     status_output = tmp_path / "screen_pipeline_status.csv"
@@ -36,10 +37,10 @@ def test_flag(tmp_path):
 
 def test_evalportal_format(tmp_path):
     """Testing flag output in evalportal format."""
-    parser = argparse.ArgumentParser()
-    add_args(parser)
-    args = parser.parse_args([SCREEN_DIR, "-o", str(tmp_path), "-r", "-e"])
-    run(args)
+    
+    runner = CliRunner()
+    
+    runner.invoke(commec, ["test", SCREEN_DIR, "-o", str(tmp_path), "-r", "-e"])
 
     # Check if the output file exists
     status_output = tmp_path / "screen_pipeline_status.csv"

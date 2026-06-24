@@ -1,6 +1,5 @@
+from needletail import Record
 import pytest
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
 from commec.config.query import Query, QueryValueError
 
@@ -20,7 +19,7 @@ def seq_record():
     non_coding_3 = "a" * 20  # Final non-coding segment
 
     sequence = non_coding_1 + coding_1 + non_coding_2 + coding_2 + non_coding_3
-    return SeqRecord(Seq(sequence), id="test_seq", description="")
+    return Record(seq=sequence, id="test_seq")
 
 
 @pytest.fixture

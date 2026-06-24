@@ -29,9 +29,9 @@ requirements:
   run:
     - python >=3.10
     # Runtime Python dependencies
-    - biopython
     - numpy
     - pandas
+    - quickdna
     - pytaxonkit
     - pyyaml
     # Runtime non-Python dependencies

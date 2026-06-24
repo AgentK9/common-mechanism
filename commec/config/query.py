@@ -4,8 +4,8 @@
 import os
 from dataclasses import dataclass
 
-from Bio import Seq
-from Bio.SeqRecord import SeqRecord
+from needletail import Record, reverse_complement
+from quickdna import DnaSequence
 
 from commec.config.constants import MAXIMUM_QUERY_NAME_LENGTH
 from commec.config.result import QueryResult
@@ -20,11 +20,11 @@ class Query:
     amino acid queries in future.
     """
 
-    def __init__(self, seq_record: SeqRecord):
+    def __init__(self, seq_record: Record):
         Query.validate_sequence_record(seq_record)
-        self._seq_record = seq_record
+        self._seq_record: Record = seq_record
         self.name = self.create_id(seq_record.id)
-        self.description = seq_record.description[len(seq_record.id) :].strip()
+        self.description = seq_record.id[len(seq_record.id) :].strip()
         self.non_coding_regions: list[
             tuple[int, int]
         ] = []  # 1 based coordinates for Non-Coding Regions.
@@ -42,7 +42,7 @@ class Query:
 
     @property
     def sequence(self) -> str:
-        return str(self._seq_record.seq)
+        return self._seq_record.seq
 
     def translate(self, output_path: str | os.PathLike) -> None:
         """
@@ -79,23 +79,25 @@ class Query:
         glycine (G) no matter what the subsequent nucleotide is.
         """
         self.translations = []
-        seq_rev = Seq.reverse_complement(self.sequence)
+        seq_rev = reverse_complement(self.sequence)
 
         # Frames use offset 0, 1, 2
         for offset in range(3):
             frame_len = self._get_frame_length(offset)
 
+            # TODO: quickdna offers translate_all_frames
+
             # Forward frame is offset from the start of the sequence
             f_start = offset
             f_end = offset + frame_len
-            protein = str(Seq.translate(self.sequence[f_start:f_end], stop_symbol="X"))
+            protein = str(DnaSequence(self.sequence[f_start:f_end]).translate().seq)
             self.translations.append(
                 QueryTranslation(sequence=protein, frame=offset + 1)
             )
             # Reverse frame is offset from the end of the sequence
             r_start = self.length - offset - frame_len
             r_end = self.length - offset
-            protein = str(Seq.translate(seq_rev[r_start:r_end], stop_symbol="X"))
+            protein = str(DnaSequence(seq_rev[r_start:r_end]).translate().seq)
             self.translations.append(
                 QueryTranslation(sequence=protein, frame=offset + 4)
             )
@@ -111,7 +113,7 @@ class Query:
         return 3 * ((self.length - frame_offset) // 3)
 
     @staticmethod
-    def validate_sequence_record(seq_record: SeqRecord) -> None:
+    def validate_sequence_record(seq_record: Record) -> None:
         """
         Validate record has non-empty sequence and id. Raises QueryError.
         """

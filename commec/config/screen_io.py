@@ -6,8 +6,7 @@ Objects responsible for parsing and interpreting user input for
 the screen workflow of commec.
 """
 
-import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import glob
 import importlib.resources
 import logging
@@ -19,9 +18,8 @@ from pprint import pformat
 from typing import Any, Optional
 
 import yaml
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
 from yaml.parser import ParserError
+from needletail import Record, parse_fastx_file
 
 from commec.config.constants import (
     DEFAULT_CONFIG_YAML_PATH,
@@ -41,12 +39,18 @@ logger = logging.getLogger(__name__)
 class Args:
     """Container for arguments - stopgap during type checking conversion."""
 
-    verbose: bool
-    database_dir: Path
     fasta_file: Path
-    output_prefix: Path
-    config_yaml: Optional[Path]
-    user_specified_args: dict[str, Any]
+    output_prefix: Path = Path("")
+    database_dir: Path = Path("commec-dbs/")
+    verbose: bool = False
+    config_yaml: Optional[Path] = None
+    user_specified_args: dict[str, Any] = field(default_factory=dict)
+
+
+def _write_fasta(file, record: Record):
+    file.write(
+        f">{record.id}\n{record.seq}\n"
+    )
 
 
 class ScreenIO:
@@ -129,7 +133,7 @@ class ScreenIO:
 
         try:
             with open(self.nt_path, "r", encoding="utf-8") as fasta_file:
-                records = list(SeqIO.parse(fasta_file, "fasta"))
+                records = [r for r in parse_fastx_file(path=fasta_file)]
         except ValueError as e:
             raise IoValidationError(
                 f"Input FASTA file: {self.input_fasta_path} is not a valid fasta file."
@@ -153,7 +157,7 @@ class ScreenIO:
                 if MINIMUM_QUERY_LENGTH < len(record.seq) <= MAXIMUM_QUERY_LENGTH:
                     # Creating new SeqRecord to avoid overwriting the seq_record object inside query and preserve the original seq id
                     updated_records.append(
-                        SeqRecord(record.seq, id=query.name, description="")
+                        Record(seq=record.seq, id=query.name)
                     )
             except Exception as e:
                 raise IoValidationError(
@@ -161,7 +165,8 @@ class ScreenIO:
                 ) from e
 
         with open(self.nt_path, "w", encoding="utf-8") as fasta_file:
-            SeqIO.write(updated_records, fasta_file, "fasta")
+            for updated_record in updated_records:
+                _write_fasta(fasta_file, updated_record)
 
         return queries
 

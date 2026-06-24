@@ -30,7 +30,7 @@ Set of containers for storing information important to screen
 import logging
 import re
 from dataclasses import asdict, dataclass, field
-from enum import StrEnum
+from enum import Enum
 from typing import Iterator, List, Tuple
 
 import pandas as pd
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 JSON_COMMEC_FORMAT_VERSION = "0.3"
 
 
-class ScreenStatus(StrEnum):
+class ScreenStatus(Enum):
     """
     All possible outputs from commec for a query screen, or individual hit.
     Ordered by importance of user feedback, and by severity of screened outcome.
@@ -157,7 +157,7 @@ def compare(a: ScreenStatus, b: ScreenStatus):
     return b
 
 
-class ScreenStep(StrEnum):
+class ScreenStep(Enum):
     """
     Enumeration of the Steps for Commec screening
     """
@@ -277,7 +277,7 @@ class HitResult:
         return output + "[" + match_string + "]"
 
 
-class Rationale(StrEnum):
+class Rationale(Enum):
     """
     Container for rationale texts in Commec outputs in one place.
 

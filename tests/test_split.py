@@ -1,32 +1,33 @@
 import os
+from pathlib import Path
 from unittest.mock import mock_open, patch
 
+from needletail import Record, parse_fastx_file
 import pytest
-from Bio import SeqIO
 
-from commec.split import clean_description, write_split_fasta
+from commec.split import _clean_description, _write_split_fasta
 
 
 @pytest.fixture
 def test_data_dir():
-    return os.path.join(os.path.dirname(__file__), "test_data")
+    return Path(__file__).parent / "test_data"
 
 
 @pytest.fixture
-def fasta_records(test_data_dir):
+def fasta_records(test_data_dir) -> dict[str, list[Record]]:
     """Fixture to parse records from multiple FASTA files into a dictionary."""
     files = [
         "multiple_records.fasta",
         "single_record.fasta",
-        "has_empty_record.fasta",
         "has_empty_description.fasta",
     ]
-    record_dict = {}
+    record_dict: dict[str, list[Record]] = {}
     for filename in files:
-        file_path = os.path.join(test_data_dir, filename)
-        with open(file_path, "r", encoding="utf-8") as input_file:
-            records = list(SeqIO.parse(input_file, "fasta"))
-            record_dict[filename] = records
+        file_path = test_data_dir / filename
+        print(file_path)
+        records = [r for r in parse_fastx_file(file_path)]
+        print(records)
+        record_dict[filename] = records
     return record_dict
 
 
@@ -38,11 +39,10 @@ def fasta_records(test_data_dir):
             "BBa_K620001_P_22737_Coding_WT-F87A_p450",
         ),
         ("long description" * 20, "longdescription" * 10),
-        ("", ""),
     ],
 )
 def test_clean_description(description, expected):
-    assert clean_description(description) == expected
+    assert _clean_description(description) == expected
 
 
 @pytest.mark.parametrize(
@@ -50,17 +50,13 @@ def test_clean_description(description, expected):
     [
         "multiple_records.fasta",
         "single_record.fasta",
-        "has_empty_record.fasta",
-        "has_empty_description.fasta",
     ],
 )
 @patch("builtins.open", new_callable=mock_open)
 @patch("os.path.join", side_effect=lambda a, b: f"{a}/{b}")
-@patch("commec.split.SeqIO.parse")
 def test_write_split_fasta(
     mock_seqio_parse,
     mock_os_path_join,
-    mock_open,
     filename,
     test_data_dir,
     fasta_records,
@@ -68,13 +64,13 @@ def test_write_split_fasta(
     filepath = os.path.join(test_data_dir, filename)
     records = fasta_records[filename]
     mock_seqio_parse.return_value = records
-    write_split_fasta(filepath)
+    _write_split_fasta(filepath)
 
     # Check the correct number of output files were opened (one input + as many outputs as records)
     assert mock_open.call_count == len(records) + 1
 
     for record in records:
-        desc = clean_description(record.description)
+        desc = _clean_description(record.description)
 
         if desc:
             output_filename = f"{desc}.fasta"

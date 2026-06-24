@@ -1,13 +1,15 @@
 import os
+from pathlib import Path
 import textwrap
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from typer.testing import CliRunner
 
+from commec.cli import commec
 from commec.config.result import QueryResult, ScreenStatus
-from commec.config.screen_io import ScreenIO
-from commec.screen import ScreenArgumentParser, add_args
+from commec.config.screen_io import Args, ScreenIO
 from commec.tools.blastx import BlastXHandler
 from commec.tools.fetch_nc_bits import (
     _get_ranges_with_no_hits,
@@ -116,23 +118,15 @@ def test_fetch_nocoding_regions(tmp_path):
     input_blast = tmp_path / "fetch_nc_input.blastx"
     input_blast.write_text(blast_to_parse)
 
-    # Create Dictionary of queries for funciton input.
-    with patch(
-        "sys.argv",
-        [
-            "test.py",
-            "--skip-tx",
-            str(input_fasta),
-            "-d",
-            str(DATABASE_DIRECTORY),
-            "-o",
-            str(tmp_path),
-        ],
-    ):
-        parser = ScreenArgumentParser()
-        add_args(parser)
-        screen_io = ScreenIO(parser.parse_args())
-        screen_io.setup()
+    # Create Dictionary of queries for function input.
+    screen_io = ScreenIO(Args(
+        verbose=False,
+        fasta_file=input_fasta,
+        database_dir=Path(DATABASE_DIRECTORY),
+        output_prefix=tmp_path,
+        config_yaml=None,
+        user_specified_args={},
+    ))
 
     queries = screen_io.parse_input_fasta()
     for query in queries.values():

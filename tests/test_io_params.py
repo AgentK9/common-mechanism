@@ -1,15 +1,14 @@
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import yaml
 
-from commec.cli import ScreenArgumentParser
-from commec.config.screen_io import ScreenIO
-from commec.screen import add_args
+from commec.config.screen_io import Args, ScreenIO
 
-INPUT_QUERY = os.path.join(os.path.dirname(__file__), "test_data/single_record.fasta")
-DATABASE_DIRECTORY = os.path.join(os.path.dirname(__file__), "test_dbs/")
+INPUT_QUERY = Path(__file__).parent / "test_data" / "single_record.fasta"
+DATABASE_DIRECTORY = Path(__file__).parent / "test_dbs"
 
 
 @pytest.fixture
@@ -99,18 +98,28 @@ def expected_updated_from_custom_yaml():
 
 
 def test_missing_input_file():
-    args = ScreenArgumentParser()
-    add_args(args)
+    # TODO?
     with pytest.raises(SystemExit):
-        args = args.parse_args()
+        args = Args(
+            verbose=False,
+            database_dir=Path(),
+            fasta_file=Path(),
+            output_prefix=Path(),
+            config_yaml=None,
+            user_specified_args={},
+        )
 
 
 def test_default_config_only(expected_defaults):
     """Test that default config is loaded when no overrides exist"""
-    parser = ScreenArgumentParser()
-    add_args(parser)
-    args = parser.parse_args([INPUT_QUERY])
-    params = ScreenIO(args)
+    params = ScreenIO(Args(
+        verbose=False,
+        database_dir=Path(),
+        fasta_file=Path(),
+        output_prefix=Path(),
+        config_yaml=None,
+        user_specified_args={},
+    ))
 
     assert expected_defaults == params.config
 
@@ -124,10 +133,11 @@ def test_user_yaml_override(
     with open(user_config_path, "w") as f:
         yaml.dump(custom_yaml_config, f)
 
-    parser = ScreenArgumentParser()
-    add_args(parser)
-    args = parser.parse_args([INPUT_QUERY, "--config", str(user_config_path)])
-    params = ScreenIO(args)
+    params = ScreenIO(Args(
+        fasta_file=Path(INPUT_QUERY),
+        database_dir=Path(DATABASE_DIRECTORY),
+        config_yaml=user_config_path
+    ))
 
     # Check that user YAML values override defaults
     assert expected_updated_from_custom_yaml == params.config
@@ -152,10 +162,12 @@ def test_cli_override(tmp_path, expected_updated_from_custom_yaml, custom_yaml_c
         str(tmp_path),
     ]
 
-    parser = ScreenArgumentParser()
-    add_args(parser)
-    args = parser.parse_args(cli_args)
-    params = ScreenIO(args)
+    params = ScreenIO(Args(
+        fasta_file=INPUT_QUERY,
+        config_yaml=user_config_path,
+        database_dir=tmp_path,
+        
+    ))
 
     # Override defaults with user YAML
     expected_updated_from_custom_yaml["skip_nt_search"] = True
@@ -186,12 +198,11 @@ def test_missing_default_config():
     """Test that missing default config raises appropriate error"""
     with patch("importlib.resources.files") as mock_files:
         mock_files.return_value.joinpath.return_value.exists.return_value = False
-        args = ScreenArgumentParser()
-        add_args(args)
-        args = args.parse_args([INPUT_QUERY])
 
         with pytest.raises(FileNotFoundError, match="No default yaml found"):
-            _ = ScreenIO(args)
+            _ = ScreenIO(Args(
+                fasta_file=INPUT_QUERY
+            ))
 
 
 @pytest.mark.parametrize(
@@ -232,10 +243,10 @@ def test_format_config_paths(tmp_path, base_path, low_concern_path, expected_pat
     with open(user_config_path, "w") as f:
         yaml.dump(config_yaml, f)
 
-    parser = ScreenArgumentParser()
-    add_args(parser)
-    args = parser.parse_args([INPUT_QUERY, "--config", str(user_config_path)])
-    params = ScreenIO(args)
+    params = ScreenIO(Args(
+        fasta_file=INPUT_QUERY,
+        config_yaml=user_config_path,
+    ))
 
     assert expected_path == params.config["databases"]["low_concern"]["rna"]["path"]
 

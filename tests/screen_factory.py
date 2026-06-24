@@ -16,10 +16,11 @@ from dataclasses import asdict
 from unittest.mock import patch
 
 import pandas as pd
+from typer.testing import CliRunner
 
+from commec.cli import commec
 from commec.config.json_io import get_screen_data_from_json
 from commec.config.result import ScreenResult, ScreenStep
-from commec.screen import ScreenArgumentParser, add_args, run
 
 
 def skip_taxonomy_info(
@@ -111,7 +112,7 @@ class ScreenTesterFactory:
         self._create_temporary_files()
 
         arguments = [
-            "test.py",
+            "screen",
             str(self.input_fasta_path),
             "-d",
             str(DATABASE_DIRECTORY),
@@ -139,15 +140,10 @@ class ScreenTesterFactory:
                 "commec.screeners.check_reg_path.get_canonical_taxids",
                 new=skip_canonical_taxids,
             ),
-            patch(
-                "sys.argv",
-                arguments,
-            ),
         ):
-            parser = ScreenArgumentParser()
-            add_args(parser)
-            args = parser.parse_args()
-            run(args)
+            runner = CliRunner()
+            runner.invoke(commec, args)
+            
 
         # return the screen data output for checking:
         json_output_path = self.tmp_path / f"{self.name}.output.json"

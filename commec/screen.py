@@ -62,7 +62,6 @@ import traceback
 from typing import Annotated, Optional
 
 import pandas as pd
-from Bio.Data.CodonTable import TranslationError
 import typer
 
 from commec.config.constants import MAXIMUM_QUERY_LENGTH, MINIMUM_QUERY_LENGTH
@@ -241,7 +240,7 @@ class Screen:
                 # Only translate if valid.
                 try:
                     query.translate(self.params.aa_path)
-                except TranslationError as e:
+                except ValueError as e:
                     logger.error(
                         "An error occured when translating %s:\n %s",
                         query.original_name,

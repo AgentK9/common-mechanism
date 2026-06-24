@@ -1,10 +1,9 @@
 import os
-from unittest.mock import patch
+from pathlib import Path
 
 import pytest
 
-from commec.config.screen_io import IoValidationError, ScreenIO
-from commec.screen import ScreenArgumentParser, add_args
+from commec.config.screen_io import Args, IoValidationError, ScreenIO
 
 
 @pytest.fixture
@@ -29,14 +28,11 @@ def database_dir():
 )
 def test_default_parameters(fasta_name, test_data_dir, database_dir, tmp_path):
     input_fasta = os.path.join(test_data_dir, fasta_name)
-    with patch(
-        "sys.argv",
-        ["test.py", "--skip-tx", input_fasta, "-d", database_dir, "-o", str(tmp_path)],
-    ):
-        parser = ScreenArgumentParser()
-        add_args(parser)
-        screen_io = ScreenIO(parser.parse_args())
-        assert screen_io.setup()
+    
+    screen_io = ScreenIO(Args(
+        fasta_file=input_fasta,
+    ))
+    assert screen_io.setup()
 
 
 @pytest.mark.parametrize(
@@ -50,14 +46,12 @@ def test_parse_input_fasta(
     fasta_name, expected_record_count, test_data_dir, database_dir, tmp_path
 ):
     input_fasta = os.path.join(test_data_dir, fasta_name)
-    with patch(
-        "sys.argv",
-        ["test.py", "--skip-tx", input_fasta, "-d", database_dir, "-o", str(tmp_path)],
-    ):
-        parser = ScreenArgumentParser()
-        add_args(parser)
-        screen_io = ScreenIO(parser.parse_args())
-        screen_io.setup()
+    
+    screen_io = ScreenIO(Args(
+        database_dir=database_dir,
+        fasta_file=input_fasta,
+        output_prefix=tmp_path,
+    ))
 
     queries = screen_io.parse_input_fasta()
     assert len(queries) == expected_record_count
@@ -73,14 +67,12 @@ def test_parse_input_fasta(
 )
 def test_parse_invalid_input_fasta(fasta_name, test_data_dir, database_dir, tmp_path):
     input_fasta = os.path.join(test_data_dir, fasta_name)
-    with patch(
-        "sys.argv",
-        ["test.py", "--skip-tx", input_fasta, "-d", database_dir, "-o", str(tmp_path)],
-    ):
-        parser = ScreenArgumentParser()
-        add_args(parser)
-        screen_io = ScreenIO(parser.parse_args())
-        screen_io.setup()
+    
+    screen_io = ScreenIO(Args(
+        database_dir=database_dir,
+        fasta_file=input_fasta,
+        output_prefix=tmp_path,
+    ))
 
     with pytest.raises(IoValidationError):
         screen_io.parse_input_fasta()

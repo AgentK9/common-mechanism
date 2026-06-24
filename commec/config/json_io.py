@@ -26,7 +26,6 @@ import json
 import os
 import string
 from dataclasses import asdict, fields, is_dataclass
-from enum import StrEnum
 from typing import Any, Dict, Type, get_args, get_origin
 
 from commec.config.result import JSON_COMMEC_FORMAT_VERSION, ScreenResult
@@ -37,7 +36,7 @@ class IoVersionError(RuntimeError):
 
 
 def encode_screen_data_to_json(
-    input_result: ScreenResult, output_json_filepath: string = "output.json"
+    input_result: ScreenResult, output_json_filepath: str = "output.json"
 ) -> None:
     """Converts a ScreenResult class object into a JSON file at the given filepath."""
     try:

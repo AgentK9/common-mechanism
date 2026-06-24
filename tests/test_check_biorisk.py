@@ -1,9 +1,9 @@
 import os
 from unittest.mock import patch
 
+from needletail import Record
 import pandas as pd
 import pytest
-from Bio.SeqRecord import Seq, SeqRecord
 
 from commec.config.constants import (
     BIORISK_LONG_QUERY_EVALUE_THRESHOLD,
@@ -79,7 +79,7 @@ def test_check_biorisk_return_codes(
         results = ScreenResult()
         queries: dict[str, Query] = {
             "testname": Query(
-                SeqRecord(Seq("atgatgatgatgatgatgatg"), "testname", "testname")
+                Record(seq="atgatgatgatgatgatgatg", id="testname")
             )
         }
         # Run the function - input paths are unused given all the mocking above

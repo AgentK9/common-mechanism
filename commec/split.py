@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import string
 
-from Bio import SeqIO
+from needletail import parse_fastx_file
 import typer
 
 VALID_FILENAME_CHARS = f"-._{string.ascii_letters}{string.digits}"
@@ -35,20 +35,19 @@ def _write_split_fasta(fasta_file):
     output_dir = os.path.dirname(fasta_file)
     fasta_name = os.path.splitext(os.path.basename(fasta_file))[0]
 
-    with open(fasta_file, "r", encoding="utf-8") as input_file:
-        for i, record in enumerate(SeqIO.parse(input_file, "fasta")):
-            desc = _clean_description(record.description)
+    for i, record in enumerate(parse_fastx_file(fasta_file)):
+        desc = _clean_description(record.description)
 
-            # Handle empty descriptions and avoid overwriting input files
-            if not desc or desc == fasta_name:
-                output_basename = f"{fasta_name}-split-{i}.fasta"
-            else:
-                output_basename = f"{desc}.fasta"
+        # Handle empty descriptions and avoid overwriting input files
+        if not desc or desc == fasta_name:
+            output_basename = f"{fasta_name}-split-{i}.fasta"
+        else:
+            output_basename = f"{desc}.fasta"
 
-            output_path = os.path.join(output_dir, output_basename)
-            with open(output_path, "w", encoding="utf-8") as output_file:
-                output_file.write(f">{desc}{os.linesep}")
-                output_file.write(str(record.seq))
+        output_path = os.path.join(output_dir, output_basename)
+        with open(output_path, "w", encoding="utf-8") as output_file:
+            output_file.write(f">{desc}{os.linesep}")
+            output_file.write(str(record.seq))
 
 
 def main(fasta_file: Path):
