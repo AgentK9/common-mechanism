@@ -45,27 +45,3 @@ exclude = ["commec/tests/**/*.py", "dev_scripts/**/*.py"]
 
 [tool.ruff.lint]
 ignore = ["E712"]
-
-[tool.pixi.workspace]
-channels = ["conda-forge", "bioconda", "main", "r", "msys2"]
-platforms = ["osx-arm64"]
-
-[tool.pixi.pypi-dependencies]
-commec = { path = ".", editable = true }
-biopython = "*"
-numpy = "*"
-pandas = "*"
-pyyaml = "*"
-pytest = "*"
-matplotlib = "*"
-ruff = "*"
-
-[tool.pixi.dependencies]
-pytaxonkit = "*"
-infernal = "*"
-plotly = "*"
-yaml = "*"
-mako = "*"
-wget = "*"
-line_profiler = ">=5.0.2,<6"
-typer = ">=0.26.7,<0.27"
