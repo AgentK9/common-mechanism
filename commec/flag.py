@@ -20,16 +20,17 @@ import argparse
 import glob
 import os
 from json import JSONDecodeError
+from pathlib import Path
+from typing import Annotated, Optional
 
 import pandas as pd
+import typer
 
 from commec.config.json_io import IoVersionError, get_screen_data_from_json
 from commec.config.result import Rationale, ScreenResult, ScreenStatus, ScreenStep
 from commec.utils.file_utils import directory_arg
 
-DESCRIPTION = (
-    "Parse all .screen, or .json files in a directory and create CSVs of flags raised"
-)
+DESCRIPTION = ()
 
 
 def add_args(parser: argparse.ArgumentParser):
@@ -223,26 +224,50 @@ def write_output_csv(
     status_df.to_csv(status_file, index=False)
     print(f"Pipeline step status written to {status_file}")
 
+def main(
+    directory: Annotated[
+        Path,
+        typer.Argument(
+            parser=directory_arg,
+            help="Directory containing .screen files to summarize",
+        ),
+    ],
+    recursive: Annotated[
+        bool,
+        typer.Option(
+            "-r",
+            "--recursive",
+            help="Search directory recursively for screen files",
+        ),
+    ] = False,
+    output: Annotated[
+        Optional[Path],
+        typer.Option(
+            "-o",
+            "--output",
+            parser=directory_arg,
+            help="Output directory name (defaults to directory if not provided)",
+        ),
+    ] = None,
+    evalportal_format: Annotated[
+        bool,
+        typer.Option(
+            "-e",
+            "--evalportal-format",
+            help="Output format compatible with the IBBIS screening evaluation portal",
+        ),
+    ] = False,
+):
+    "Parse all .screen, or .json files in a directory and create CSVs of flags raised"
+    output_dir = output or os.path.dirname(directory)
 
-def run(args: argparse.Namespace):
-    """
-    Wrapper so that args be parsed in main() or commec.py interface.
-
-    Read all files that end with .screen in the input directory, then summarize their outcomes in
-    three CSVs: flags.csv, flags_recommended.csv, and screen_pipeline_status.csv.
-    """
-    search_dir = args.directory
-    search_recursive = args.recursive
-    output_dir = args.output or os.path.dirname(search_dir)
-    evalportal_format = args.evalportal_format
-
-    search_pattern = "**/*.json" if search_recursive else "*.json"
+    search_pattern = "**/*.json" if recursive else "*.json"
     screen_paths = glob.glob(
-        os.path.join(search_dir, search_pattern), recursive=search_recursive
+        os.path.join(directory, search_pattern), recursive=recursive
     )
 
     if not screen_paths:
-        raise FileNotFoundError(f"No .json files were found in directory: {search_dir}")
+        raise FileNotFoundError(f"No .json files were found in directory: {directory}")
 
     screen_status = []
     for file_path in sorted(screen_paths):
@@ -252,12 +277,5 @@ def run(args: argparse.Namespace):
     write_output_csv(output_dir, screen_status, evalportal_format)
 
 
-def main():
-    """Main function. Passes args to `run`."""
-    parser = argparse.ArgumentParser(description=DESCRIPTION)
-    add_args(parser)
-    run(parser.parse_args())
-
-
 if __name__ == "__main__":
-    main()
+    typer.run(main)

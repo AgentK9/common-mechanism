@@ -7,13 +7,16 @@ the screen workflow of commec.
 """
 
 import argparse
+from dataclasses import dataclass
 import glob
 import importlib.resources
 import logging
 import multiprocessing
 import os
+from pathlib import Path
 import sys
 from pprint import pformat
+from typing import Any, Optional
 
 import yaml
 from Bio import SeqIO
@@ -34,12 +37,24 @@ from commec.utils.file_utils import expand_and_normalize
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class Args:
+    """Container for arguments - stopgap during type checking conversion."""
+
+    verbose: bool
+    database_dir: Path
+    fasta_file: Path
+    output_prefix: Path
+    config_yaml: Optional[Path]
+    user_specified_args: dict[str, Any]
+
+
 class ScreenIO:
     """
     Container for input settings constructed from arguments to `screen`.
     """
 
-    def __init__(self, args: argparse.Namespace):
+    def __init__(self, args: Args):
         # Inputs that do no have a package-level default, since they are specific to each run
         self.db_dir = args.database_dir
         self.input_fasta_path = os.path.abspath(args.fasta_file)
@@ -168,7 +183,7 @@ class ScreenIO:
                     if os.path.isfile(file):
                         os.remove(file)
 
-    def _read_config(self, args: argparse.Namespace):
+    def _read_config(self, args: Args):
         """
         Get the configuration for this screen run.
 
@@ -191,12 +206,11 @@ class ScreenIO:
             )
 
         # Override configuration with any in user-provided YAML file
-        cli_config_yaml = args.config_yaml.strip()
-        if os.path.exists(cli_config_yaml):
+        if args.config_yaml and args.config_yaml.exists():
             logger.debug(
-                f"Overriding defaults in {default_yaml} with values from {cli_config_yaml}"
+                f"Overriding defaults in {default_yaml} with values from {args.config_yaml}"
             )
-            self._update_config_from_yaml(cli_config_yaml)
+            self._update_config_from_yaml(args.config_yaml)
 
         # Override configuration with any user-provided CLI arguments
         self._update_config_from_cli(args)
@@ -240,7 +254,7 @@ class ScreenIO:
                 rejects[1],
             )
 
-    def _update_config_from_cli(self, args: argparse.Namespace):
+    def _update_config_from_cli(self, args: Args):
         """
         Override YAML configuration based on arguments given in the command line.
         Need to reference `user_specified_args` because CLI defaults should not override YAML.

@@ -51,14 +51,19 @@ Output file handling:
 """
 
 import argparse
+from dataclasses import dataclass
 import datetime
+from enum import Enum
 import logging
+from pathlib import Path
 import sys
 import time
 import traceback
+from typing import Annotated, Optional
 
 import pandas as pd
 from Bio.Data.CodonTable import TranslationError
+import typer
 
 from commec.config.constants import MAXIMUM_QUERY_LENGTH, MINIMUM_QUERY_LENGTH
 from commec.config.json_io import encode_screen_data_to_json
@@ -69,7 +74,7 @@ from commec.config.result import (
     ScreenStatus,
     ScreenStep,
 )
-from commec.config.screen_io import IoValidationError, ScreenIO
+from commec.config.screen_io import Args, IoValidationError, ScreenIO
 from commec.config.screen_tools import ScreenTools
 from commec.screeners.check_biorisk import parse_biorisk_hits
 from commec.screeners.check_low_concern import parse_low_concern_hits
@@ -84,173 +89,12 @@ from commec.utils.logger import (
     setup_file_logging,
 )
 
-DESCRIPTION = "Run Common Mechanism screening on an input FASTA."
-
 logger = logging.getLogger(__name__)
 
 
-class ScreenArgumentParser(argparse.ArgumentParser):
-    """
-    Argument parser that returns a `user_specified_args` namespace item,
-    which helps selectively override other configuration (e.g. provided via YAML)
-    i.e. for only when it has explicitly been used as an argument in CLI.
-
-    Importantly, this iterates over all sub-parsers too, required for the
-    cli entry point of Commec. However to do this we access various private
-    parser attributes - which is naughty - but its better than writing our own argsparse.
-    """
-
-    def parse_args(self, args=None, namespace=None):
-        # Get argument strings; in most cases, args and sys.argv[1:] will be the same
-        cli_strings = args if args is not None else sys.argv[1:]
-        user_specified_args = set()
-
-        def collect_user_actions(parser: ScreenArgumentParser):
-            """
-            Recursively collect all actions, including subparsers.
-            _actions has every argument provide to the parser, and
-            has every SubParserActions instances.
-            """
-            for action in parser._actions:
-                if isinstance(action, argparse._SubParsersAction):
-                    # Recurse into each subparser
-                    for _sub_name, subparser in action.choices.items():
-                        collect_user_actions(subparser)
-                else:
-                    for arg_string in action.option_strings:
-                        # print("Testing:", arg_string)
-                        if arg_string in cli_strings:
-                            # print("added!")
-                            user_specified_args.add(action.dest)
-
-        # Collect arguments from main parser and all subparsers
-        collect_user_actions(self)
-
-        ns = super().parse_args(args, namespace)
-        setattr(ns, "user_specified_args", user_specified_args)
-        return ns
-
-
-def add_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    """
-    Add module arguments to an ArgumentParser object.
-    """
-
-    parser.add_argument(dest="fasta_file", type=file_arg, help="FASTA file to screen")
-    parser.add_argument(
-        "-d",
-        "--databases",
-        dest="database_dir",
-        type=directory_arg,
-        default=None,
-        help="Path to directory containing reference databases (e.g. taxonomy, protein, HMM)",
-    )
-    parser.add_argument(
-        "-y",
-        "--config",
-        dest="config_yaml",
-        help="Configuration for screen run in YAML format, including custom database paths",
-        default="",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        dest="verbose",
-        action="store_true",
-        help="Output verbose (i.e. DEBUG-level) logs",
-    )
-    screen_logic_group = parser.add_argument_group("Screen run logic")
-    screen_logic_group.add_argument(
-        "--skip-tx",
-        dest="skip_taxonomy_search",
-        action="store_true",
-        help=(
-            "Skip taxonomy homology search (only toxins and other proteins"
-            " included in the biorisk database will be flagged)"
-        ),
-    )
-    screen_logic_group.add_argument(
-        "--skip-nt",
-        dest="skip_nt_search",
-        action="store_true",
-        help=(
-            "Skip nucleotide search (regulated pathogens will only be"
-            " identified based on biorisk database and protein hits)"
-        ),
-    )
-
-    screen_logic_group.add_argument(
-        "-p",
-        "--protein-search-tool",
-        dest="protein_search_tool",
-        choices=["blastx", "diamond"],
-        help="Tool for protein homology search to identify regulated pathogens",
-    )
-
-    screen_logic_group.add_argument(
-        "-f",
-        "--fast-mode",
-        action="store_true",
-        deprecated=True,
-        help=(
-            "(DEPRECATED: legacy commands for --fast-mode, please use"
-            " --skip-tx to skip the taxonomy step instead.)"
-        ),
-    )
-    screen_logic_group.add_argument(
-        "-n",
-        action="store_true",
-        deprecated=True,
-        help="(DEPRECATED: shorthand for --skip-nt, use --skip-nt instead.)",
-    )
-
-    parallel_group = parser.add_argument_group("Parallelisation")
-    parallel_group.add_argument(
-        "-t",
-        "--threads",
-        dest="threads",
-        type=int,
-        help="Number of CPU threads to use. Passed to search tools.",
-    )
-    parallel_group.add_argument(
-        "-j",
-        "--diamond-jobs",
-        dest="diamond_jobs",
-        type=int,
-        help="Diamond-only: number of runs to do in parallel on split Diamond databases",
-    )
-    output_handling_group = parser.add_argument_group("Output file handling")
-    output_exclusive_group = output_handling_group.add_mutually_exclusive_group()
-    output_handling_group.add_argument(
-        "-o",
-        "--output",
-        dest="output_prefix",
-        help="Prefix for output files. Can be a string (interpreted as output basename) or a"
-        + " directory (files will be output there, names will be determined from input FASTA)",
-        default="",
-    )
-    output_handling_group.add_argument(
-        "-c",
-        "--cleanup",
-        dest="do_cleanup",
-        action="store_true",
-        help="Delete intermediate output files for this Screen run",
-    )
-    output_exclusive_group.add_argument(
-        "-F",
-        "--force",
-        dest="force",
-        action="store_true",
-        help="Overwrite any pre-existing output for this Screen run (cannot be used with --resume)",
-    )
-    output_exclusive_group.add_argument(
-        "-R",
-        "--resume",
-        dest="resume",
-        action="store_true",
-        help="Re-use any pre-existing output for this Screen run (cannot be used with --force)",
-    )
-    return parser
+class ProteinSearchTool(str, Enum):
+    blastx = "blastx"
+    diamond = "diamond"
 
 
 class Screen:
@@ -313,8 +157,8 @@ class Screen:
             if self.params.config["do_cleanup"]:
                 self.params.clean()
 
-    def setup(self, args: argparse.Namespace):
-        """Instantiates and validates parameters, and databases, ready for a run."""
+    def setup(self, args: Args):
+        """Instantiates and validates that parameters and databases are ready for a run."""
 
         # Start logging to console
         log_level = logging.INFO if not args.verbose else logging.DEBUG
@@ -441,7 +285,7 @@ class Screen:
             "%Y-%m-%d %H:%M:%S"
         )
 
-    def run(self, args: argparse.Namespace):
+    def run(self, args: Args):
         """
         Wrapper so that args be parsed in main() or commec.py interface.
         """
@@ -704,10 +548,158 @@ class Screen:
             query.status.set_step_status(step, status)
 
 
-def run(args: argparse.Namespace):
+def main(
+    fasta_file: Annotated[
+        Path,
+        typer.Argument(parser=file_arg, help="FASTA file to screen"),
+    ],
+    database_dir: Annotated[
+        Path,
+        typer.Option(
+            "-d",
+            "--databases",
+            parser=directory_arg,
+            help="Path to directory containing reference databases (e.g. taxonomy, protein, HMM)",
+        ),
+    ] = Path("./commec-dbs"),
+    config_yaml: Annotated[
+        Optional[Path],
+        typer.Option(
+            "-y",
+            "--config",
+            help="Configuration for screen run in YAML format, including custom database paths",
+        ),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option("-v", "--verbose", help="Output verbose (i.e. DEBUG-level) logs"),
+    ] = False,
+    skip_taxonomy_search: Annotated[
+        bool,
+        typer.Option(
+            "--skip-tx",
+            help=(
+                "Skip taxonomy homology search (only toxins and other proteins"
+                " included in the biorisk database will be flagged)"
+            ),
+            rich_help_panel="Screen run logic",
+        ),
+    ] = False,
+    skip_nt_search: Annotated[
+        bool,
+        typer.Option(
+            "--skip-nt",
+            help=(
+                "Skip nucleotide search (regulated pathogens will only be"
+                " identified based on biorisk database and protein hits)"
+            ),
+            rich_help_panel="Screen run logic",
+        ),
+    ] = False,
+    protein_search_tool: Annotated[
+        Optional[ProteinSearchTool],
+        typer.Option(
+            "-p",
+            "--protein-search-tool",
+            help="Tool for protein homology search to identify regulated pathogens",
+            rich_help_panel="Screen run logic",
+        ),
+    ] = None,
+    fast_mode: Annotated[
+        bool,
+        typer.Option(
+            "-f",
+            "--fast-mode",
+            hidden=True,
+            help=(
+                "(DEPRECATED: legacy commands for --fast-mode, please use"
+                " --skip-tx to skip the taxonomy step instead.)"
+            ),
+            rich_help_panel="Screen run logic",
+        ),
+    ] = False,
+    n: Annotated[
+        bool,
+        typer.Option(
+            "-n",
+            hidden=True,
+            help="(DEPRECATED: shorthand for --skip-nt, use --skip-nt instead.)",
+            rich_help_panel="Screen run logic",
+        ),
+    ] = False,
+    threads: Annotated[
+        Optional[int],
+        typer.Option(
+            "-t",
+            "--threads",
+            help="Number of CPU threads to use. Passed to search tools.",
+            rich_help_panel="Parallelisation",
+        ),
+    ] = None,
+    diamond_jobs: Annotated[
+        Optional[int],
+        typer.Option(
+            "-j",
+            "--diamond-jobs",
+            help="Diamond-only: number of runs to do in parallel on split Diamond databases",
+            rich_help_panel="Parallelisation",
+        ),
+    ] = None,
+    output_prefix: Annotated[
+        str,
+        typer.Option(
+            "-o",
+            "--output",
+            help=(
+                "Prefix for output files. Can be a string (interpreted as output basename) or a"
+                " directory (files will be output there, names will be determined from input FASTA)"
+            ),
+            rich_help_panel="Output file handling",
+        ),
+    ] = "",
+    do_cleanup: Annotated[
+        bool,
+        typer.Option(
+            "-c",
+            "--cleanup",
+            help="Delete intermediate output files for this Screen run",
+            rich_help_panel="Output file handling",
+        ),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "-F",
+            "--force",
+            help="Overwrite any pre-existing output for this Screen run (cannot be used with --resume)",
+            rich_help_panel="Output file handling",
+        ),
+    ] = False,
+    resume: Annotated[
+        bool,
+        typer.Option(
+            "-R",
+            "--resume",
+            help="Re-use any pre-existing output for this Screen run (cannot be used with --force)",
+            rich_help_panel="Output file handling",
+        ),
+    ] = False,
+):
     """
-    Entry point from commec main. Passes args to Screen object, and runs.
+    Run Common Mechanism screening on an input FASTA.
     """
+    if force and resume:
+        raise typer.BadParameter("--force cannot be used with --resume")
+
+    args = Args(
+        verbose=verbose,
+        database_dir=database_dir,
+        fasta_file=fasta_file,
+        output_prefix=Path(output_prefix),
+        config_yaml=config_yaml,
+        user_specified_args={},
+    )
+
     my_screen: Screen = Screen()
     try:
         my_screen.run(args)
@@ -715,19 +707,5 @@ def run(args: argparse.Namespace):
         print(" >>> Commec Screen Terminated.")
 
 
-def main():
-    """
-    Main function. Passes args to Screen object, which then runs.
-    """
-    parser = ScreenArgumentParser(description=DESCRIPTION)
-    add_args(parser)
-    args = parser.parse_args()
-    run(args)
-
-
 if __name__ == "__main__":
-    try:
-        main()
-    except RuntimeError as e:
-        print(f"Runtime error: {e}", file=sys.stderr)
-        sys.exit(1)
+    typer.run(main)

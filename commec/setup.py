@@ -13,10 +13,12 @@ import shutil
 import subprocess
 import sys
 import tarfile
+from typing import Annotated
 import zipfile
 from pathlib import Path
 from urllib import error, parse, request
 
+import typer
 import yaml
 from yaml.parser import ParserError
 
@@ -846,13 +848,18 @@ def add_args(parser_obj: argparse.ArgumentParser) -> argparse.ArgumentParser:
     return parser_obj
 
 
-def run(arguments):
-    """Run CLI with an parsed argument parser input."""
-    CliSetup(arguments.automated)
+def main(
+    automated: Annotated[
+        bool,
+        typer.Option(
+            "-a",
+            help="Don't ask for user input, and use default options for everything.",
+        ),
+    ] = False,
+):
+    """Helper script for downloading the databases required for running the Common Mechanism Screen."""
+    CliSetup(automated)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=DESCRIPTION)
-    add_args(parser)
-    args = parser.parse_args()
-    run(args)
+    typer.run(main)
