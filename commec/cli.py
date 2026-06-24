@@ -23,7 +23,7 @@ from commec.setup import main as setup
 from commec.split import main as split
 
 
-commec = typer.Typer()
+commec = typer.Typer(no_args_is_help=True)
 
 commec.command("screen")(screen)
 commec.command("flag")(flag)
