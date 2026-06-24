@@ -23,7 +23,7 @@ from commec.setup import main as setup
 from commec.split import main as split
 
 
-commec = typer.Typer(no_args_is_help=True)
+commec = typer.Typer(no_args_is_help=True, help="Command-line entrypoint for the Common Mechanism")
 
 commec.command("screen")(screen)
 commec.command("flag")(flag)
