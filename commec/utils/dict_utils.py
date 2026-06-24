@@ -5,12 +5,15 @@ Static functions useful for dealing with common dictionary tasks.
 """
 
 
+from typing import Any
+
+
 @staticmethod
 def deep_update(
-    to_update: dict[str, any],
-    has_updates: dict[str, any],
+    to_update: dict[str, Any],
+    has_updates: dict[str, Any],
     accept_new_keys: bool = False,
-) -> tuple[dict[str, any], list[tuple[str, any]]]:
+) -> tuple[dict[str, Any], list[tuple[str, Any]]]:
     """
     Recursively update a nested dictionary without completely overwriting nested dictionaries.
     Only already existing keys are updated. Any keys not existing in the dictionary

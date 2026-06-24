@@ -9,6 +9,7 @@ Throws if inputs are invalid. Creates a temporary log file, which is deleted on 
 
 import re
 import subprocess
+from typing import Optional
 
 import pandas as pd
 
@@ -33,7 +34,7 @@ class CmscanHandler(SearchHandler):
         ]
         self.run_as_subprocess(command, self.temp_log_file)
 
-    def read_output(self):
+    def read_output(self) -> pd.DataFrame:
         output_dataframe = readcmscan(self.out_file)
         # Standardize the output column names to be like blast:
         output_dataframe = output_dataframe.rename(
@@ -49,7 +50,7 @@ class CmscanHandler(SearchHandler):
         )
         return output_dataframe
 
-    def get_version_information(self) -> SearchToolVersion:
+    def get_version_information(self) -> Optional[SearchToolVersion]:
         try:
             database_info = None
             with open(self.db_file, "r", encoding="utf-8") as file:

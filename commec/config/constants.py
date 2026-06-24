@@ -2,6 +2,9 @@
 # Copyright (c) 2021-2024 International Biosecurity and Biosafety Initiative for Science
 
 # SCREENING
+from pathlib import Path
+
+
 MINIMUM_QUERY_LENGTH = 41
 MAXIMUM_QUERY_LENGTH = 100000
 
@@ -18,6 +21,6 @@ HMMSCAN_MAX_THREAD_LIMIT = 4
 CMSCAN_MAX_THREAD_LIMIT = 4
 
 # I/O
-DEFAULT_CONFIG_YAML_PATH = "screen-default-config.yaml"
+DEFAULT_CONFIG_YAML_PATH = Path("screen-default-config.yaml")
 MAXIMUM_FILENAME_SIZE = 255
 MAXIMUM_QUERY_NAME_LENGTH = 64

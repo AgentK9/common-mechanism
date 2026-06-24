@@ -9,6 +9,9 @@ import os
 import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Optional
+
+from pandas import DataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -117,13 +120,13 @@ class SearchHandler(ABC):
         """
 
     @abstractmethod
-    def read_output(self):
+    def read_output(self) -> DataFrame:
         """
         Returns the output of the handler in the form of a pandas dataframe.
         """
 
     @abstractmethod
-    def get_version_information(self) -> SearchToolVersion:
+    def get_version_information(self) -> Optional[SearchToolVersion]:
         """
         Provide version for the search tool used, to allow reproducibility.
         This method should be implemented by all subclasses to return tool-specific version info.

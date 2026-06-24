@@ -7,6 +7,7 @@ any other HTML document as appropriate.
 import argparse
 import importlib.resources
 import os
+from pathlib import Path
 import textwrap
 
 import pandas as pd
@@ -183,9 +184,7 @@ def generate_html_from_screen_data(input_data: ScreenResult, output_file: str):
     )
 
     # Construct the composite HTML
-    template_path = str(
-        importlib.resources.files("commec").joinpath("utils").joinpath("template.html")
-    )
+    template_path = Path(__file__).parent / "template.html"
     template = Template(filename=template_path)
     rendered_html = template.render(
         figures_html=figures_html,
@@ -199,8 +198,8 @@ def generate_html_from_screen_data(input_data: ScreenResult, output_file: str):
 
     # Save the combined HTML output
     output_filename = output_file.strip() + ".html"
-    with open(output_filename, "w", encoding="utf-8") as output_file:
-        output_file.write(rendered_html)
+    with open(output_filename, "w", encoding="utf-8") as out_file:
+        out_file.write(rendered_html)
 
 
 def update_layout(fig, query_to_draw: QueryResult, stacks):

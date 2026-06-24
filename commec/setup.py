@@ -65,7 +65,7 @@ class CliSetup:
 
         self.latest_version = get_latest_commec_database_release_tag()[0]
 
-        self.database_directory: str = "commec-dbs/"
+        self.database_directory: Path = Path("commec-dbs/")
 
         self.download_biorisk: bool = True
         self.default_biorisk_download_url: str = (
@@ -183,7 +183,7 @@ class CliSetup:
             )
             self.stop()
 
-    def check_directory_is_writable(self, input_directory: str) -> str:
+    def check_directory_is_writable(self, input_directory: Path) -> Path:
         """
         Checks a directory is viable by
         * Expanding terminal variables, user, and resolving the full path and
@@ -203,12 +203,12 @@ class CliSetup:
                 "User expansion for path failed, ensure you are using"
                 ' "~/" for self, or a valid user with "~username/".'
             )
-            return ""
+            return Path("")
 
         try:
             path = path.resolve()
         except RuntimeError:
-            return ""
+            return Path("")
 
         print(path)
         if path.exists():
@@ -216,7 +216,7 @@ class CliSetup:
 
         if path.is_reserved():
             print("This path contains reserved characters for this Operating System.")
-            return ""
+            return Path("")
 
         # Handily, all sorts of special characters are identified with a %XX, within posix, and are replaced
         # by similar characters during mkdir, whilst technically legal, lets recommend against cursed dir names.
@@ -224,7 +224,7 @@ class CliSetup:
             print(
                 'Please avoid using special characters ("|}{":?><*&" etc) in filepath names.'
             )
-            return ""
+            return Path("")
 
         # If the path doesn't exist, the best way to know if user input is valid, is to try make it.
         # Find the part of the directory which is new, so we can delete only it after.
@@ -243,14 +243,13 @@ class CliSetup:
             except OSError:
                 pass
             return path
-        return ""
+        return Path("")
 
     def setup_overall_directory(self):
         """
         Get user inputs for global directory to store databases.
         """
         self.print_step_header(1)
-        user_input: str = ""
         print(
             "\nPlease provide the absolute or relative filepath",
             "to where you would like the Commec databases to be located...",
@@ -271,7 +270,7 @@ class CliSetup:
                 continue
 
             if len(user_input) > 0:
-                user_input_validated = self.check_directory_is_writable(user_input)
+                user_input_validated = self.check_directory_is_writable(Path(user_input))
                 if not user_input_validated:
                     print(user_input, " is not a valid directory structure!")
                     continue
@@ -459,7 +458,6 @@ class CliSetup:
         Get the URL where the Commec Biorisk and Benign databases are located.
         """
         self.print_step_header(2, 6)
-        user_input: str = ""
         print(
             "Please provide the URL to download the Taxonomy database.",
             "\nPress <Enter> to use existing: ",
@@ -699,6 +697,7 @@ class CliSetup:
                 )
 
         elif parsed_url.scheme == "ftp":
+            assert parsed_url.hostname
             # Handle FTP URLs using ftplib
             try:
                 with ftplib.FTP(parsed_url.hostname) as ftp:
@@ -733,7 +732,7 @@ class CliSetup:
             f" {C_F_BLUE}*-------------------*{C_RESET}",
         )
 
-    def update_default_db_base_path(self, config_file: str, new_path: str) -> None:
+    def update_default_db_base_path(self, config_file: Path, new_path: Path) -> None:
         """
         Update the ['basepaths']['default'] path in the configuration yaml file to match the path
         where the databases were installed.

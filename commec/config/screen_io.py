@@ -6,10 +6,8 @@ Objects responsible for parsing and interpreting user input for
 the screen workflow of commec.
 """
 
-import argparse
 from dataclasses import dataclass
 import glob
-import importlib.resources
 import logging
 import multiprocessing
 import os
@@ -195,9 +193,7 @@ class ScreenIO:
             2. (highest-priority) Configuration provided directly as CLI arguments
         """
         # Read package-level configuration defaults
-        default_yaml = importlib.resources.files("commec").joinpath(
-            DEFAULT_CONFIG_YAML_PATH
-        )
+        default_yaml = Path(__file__).parent.parent.resolve() / DEFAULT_CONFIG_YAML_PATH
         if default_yaml.exists():
             self.config = self._load_config_from_yaml(str(default_yaml))
         else:
@@ -275,7 +271,7 @@ class ScreenIO:
                 )
                 self.config[arg] = getattr(args, arg)
 
-    def _format_config_paths(self, db_dir_override: str | os.PathLike = None):
+    def _format_config_paths(self, db_dir_override: Optional[str | os.PathLike] = None):
         """
         The YAML file is expected to contain a 'base_paths' key that is referenced in string
         substitutions, so that base paths do not need to be defined more than once. For example:
@@ -337,7 +333,7 @@ class ScreenIO:
             pass
 
     @staticmethod
-    def _get_output_prefixes(input_file: str | os.PathLike, prefix_arg=None) -> str:
+    def _get_output_prefixes(input_file: str | os.PathLike, prefix_arg=None) -> tuple[str, str, str]:
         """
         Returns a set of prefixes that can be used for all output files:
             prefix/name
@@ -389,7 +385,7 @@ class ScreenIO:
         with open(output_filepath, "w", encoding="utf-8") as stream_out:
             yaml.safe_dump(self.config, stream_out, default_flow_style=False)
 
-    def _write_clean_fasta(self) -> str:
+    def _write_clean_fasta(self):
         """
         Write a FASTA in which whitespace (excluding in header), including non-breaking spaces and
         illegal characters are replaced with underscores.

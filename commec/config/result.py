@@ -31,7 +31,7 @@ import logging
 import re
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
-from typing import Iterator, List, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 import pandas as pd
 
@@ -461,7 +461,7 @@ class QueryResult:
     status: QueryScreenStatus = field(default_factory=QueryScreenStatus)
     hits: dict[str, HitResult] = field(default_factory=dict)
 
-    def get_hit(self, match_name: str) -> HitResult:
+    def get_hit(self, match_name: str) -> Optional[HitResult]:
         """Wrapper for get logic."""
         return self.hits.get(match_name)
 
@@ -797,16 +797,16 @@ class QueryResult:
 class SearchToolInfo:
     """Container to hold version info for search tools and databases used."""
 
-    biorisk_search_info: SearchToolVersion = field(default_factory=SearchToolVersion)
-    protein_search_info: SearchToolVersion = field(default_factory=SearchToolVersion)
-    nucleotide_search_info: SearchToolVersion = field(default_factory=SearchToolVersion)
-    low_concern_protein_search_info: SearchToolVersion = field(
+    biorisk_search_info: Optional[SearchToolVersion] = field(default_factory=SearchToolVersion)
+    protein_search_info: Optional[SearchToolVersion] = field(default_factory=SearchToolVersion)
+    nucleotide_search_info: Optional[SearchToolVersion] = field(default_factory=SearchToolVersion)
+    low_concern_protein_search_info: Optional[SearchToolVersion] = field(
         default_factory=SearchToolVersion
     )
-    low_concern_rna_search_info: SearchToolVersion = field(
+    low_concern_rna_search_info: Optional[SearchToolVersion] = field(
         default_factory=SearchToolVersion
     )
-    low_concern_dna_search_info: SearchToolVersion = field(
+    low_concern_dna_search_info: Optional[SearchToolVersion] = field(
         default_factory=SearchToolVersion
     )
 
@@ -841,7 +841,7 @@ class ScreenResult:
     query_info: ScreenQueryInfo = field(default_factory=ScreenQueryInfo)
     queries: dict[str, QueryResult] = field(default_factory=dict)
 
-    def get_query(self, query_name: str) -> QueryResult:
+    def get_query(self, query_name: str) -> Optional[QueryResult]:
         """
         Wrapper for Query get logic.
         """

@@ -49,9 +49,6 @@ Output file handling:
   -F, --force           Overwrite any pre-existing output for run (cannot be used with --resume)
   -R, --resume          Re-use any pre-existing output run (cannot be used with --force)
 """
-
-import argparse
-from dataclasses import dataclass
 import datetime
 from enum import Enum
 import logging
@@ -112,9 +109,9 @@ class Screen:
         sys.exit(1)
 
     def __init__(self):
-        self.params: ScreenIO = None
-        self.queries: dict[str, Query] = None
-        self.database_tools: ScreenTools = None
+        self.params: Optional[ScreenIO] = None
+        self.queries: dict[str, Query] = {}
+        self.database_tools: Optional[ScreenTools] = None
         self.screen_data: ScreenResult = ScreenResult()
         self.start_time = time.time()
         self.success = False
@@ -169,7 +166,7 @@ class Screen:
         )
 
         logger.debug("Parsing input parameters...")
-        self.params: ScreenIO = ScreenIO(args)
+        self.params = ScreenIO(args)
         self.params.setup()
 
         # Logging level may be overridden
@@ -184,7 +181,7 @@ class Screen:
 
         logger.info("Validating input parameters, query and databases...")
         try:
-            self.database_tools: ScreenTools = ScreenTools(self.params)
+            self.database_tools = ScreenTools(self.params)
         except DatabaseValidationError as e:
             logger.error(e)
             self.early_exit()
@@ -291,6 +288,7 @@ class Screen:
         """
         # Perform setup steps.
         self.setup(args)
+        assert self.params is not None
         self.params.output_yaml(self.params.input_prefix + "_config.yaml")
 
         # Biorisk screen

@@ -3,6 +3,7 @@
 
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 from Bio import Seq
 from Bio.SeqRecord import SeqRecord
@@ -28,7 +29,7 @@ class Query:
         self.non_coding_regions: list[
             tuple[int, int]
         ] = []  # 1 based coordinates for Non-Coding Regions.
-        self.result: QueryResult = None
+        self.result: Optional[QueryResult] = None
         self.translations: list[QueryTranslation] = []
         self.no_hits_warning: bool = True  # Updated to False whenever any hit is found.
 
@@ -155,6 +156,9 @@ class Query:
             if len(testname) > MAXIMUM_QUERY_NAME_LENGTH:
                 break
             output = testname
+
+        if not output:
+            raise ValueError("No output found")
 
         return output
 

@@ -8,6 +8,7 @@ Sets and alters defaults based on input parameters.
 
 import logging
 import os
+from typing import Optional
 
 from commec.config.screen_io import ScreenIO
 from commec.tools.blastn import BlastNHandler
@@ -25,17 +26,17 @@ class ScreenTools:
     """
 
     def __init__(self, params: ScreenIO):
-        self.biorisk: HmmerHandler = None
-        self.regulated_protein: BlastXHandler | DiamondHandler = None
-        self.regulated_nt: BlastNHandler = None
-        self.low_concern_hmm: HmmerHandler = None
-        self.low_concern_blastn: BlastNHandler = None
-        self.low_concern_cmscan: CmscanHandler = None
+        self.biorisk: Optional[HmmerHandler] = None
+        self.regulated_protein: Optional[BlastXHandler | DiamondHandler] = None
+        self.regulated_nt: Optional[BlastNHandler] = None
+        self.low_concern_hmm: Optional[HmmerHandler] = None
+        self.low_concern_blastn: Optional[BlastNHandler] = None
+        self.low_concern_cmscan: Optional[CmscanHandler] = None
 
-        self.taxonomy_path: str | os.PathLike = None
-        self.biorisk_taxid_path: str | os.PathLike = None
-        self.low_concern_taxid_path: str | os.PathLike = None
-        self.biorisk_annotations_csv: str | os.PathLike = None
+        self.taxonomy_path: Optional[str | os.PathLike] = None
+        self.biorisk_taxid_path: Optional[str | os.PathLike] = None
+        self.low_concern_taxid_path: Optional[str | os.PathLike] = None
+        self.biorisk_annotations_csv: Optional[str | os.PathLike] = None
 
         # Paths for vaxid, taxids, and taxonomy directory, used for check_regulated_pathogens
         # (Declared this way for backwards compatibility to old database structure at this stage)

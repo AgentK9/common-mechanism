@@ -258,7 +258,7 @@ def parse_biorisk_hits(
             log_container[affected_query[:-2]].append(log_message)
 
             # Deal with whether this biorisk should collapse into an existing hit or not.
-            hit_data: HitResult = query_data.get_hit(affected_target)
+            hit_data = query_data.get_hit(affected_target)
             if hit_data:
                 logger.debug(
                     "\t\tHit already existed! Extending hit data ranges only..."

@@ -10,6 +10,7 @@ Throws if inputs are invalid. Creates a temporary log file, which is deleted on 
 import itertools
 import re
 import subprocess
+from typing import Optional
 
 import pandas as pd
 
@@ -53,12 +54,12 @@ class HmmerHandler(SearchHandler):
         )
         return output_dataframe
 
-    def get_version_information(self) -> SearchToolVersion:
+    def get_version_information(self) -> Optional[SearchToolVersion]:
         """
         The first line of the HMM database typically contains creation date
         information, and some version information.
         """
-        database_info: str = None
+        database_info: Optional[str] = None
         try:
             with open(self.db_file, "r", encoding="utf-8") as file:
                 for line in file:
@@ -68,6 +69,8 @@ class HmmerHandler(SearchHandler):
                     # Early exit if data has been found
                     if database_info:
                         break
+            if not database_info:
+                raise ValueError("No database info found")
 
             tool_version_result = subprocess.run(
                 ["hmmscan", "-h"], capture_output=True, text=True, check=True

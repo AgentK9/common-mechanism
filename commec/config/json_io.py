@@ -24,7 +24,6 @@ Set of tools for retrieving and storing information important to screen
 
 import json
 import os
-import string
 from dataclasses import asdict, fields, is_dataclass
 from enum import StrEnum
 from typing import Any, Dict, Type, get_args, get_origin
@@ -37,7 +36,7 @@ class IoVersionError(RuntimeError):
 
 
 def encode_screen_data_to_json(
-    input_result: ScreenResult, output_json_filepath: string = "output.json"
+    input_result: ScreenResult, output_json_filepath: str = "output.json"
 ) -> None:
     """Converts a ScreenResult class object into a JSON file at the given filepath."""
     try:
@@ -142,7 +141,7 @@ def dict_to_dataclass(cls: Type, data: Dict[str, Any]) -> Any:
     return cls(**filtered_data)
 
 
-def get_screen_data_from_json(input_json_filepath: string) -> ScreenResult:
+def get_screen_data_from_json(input_json_filepath: str) -> ScreenResult:
     """Loads a JSON file from given filepath and returns
     a populated ScreenResult object from its contents. If the file does not
     exist, then returns a new screen data object."""
