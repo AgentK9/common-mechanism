@@ -4,6 +4,7 @@ channels = ["conda-forge", "bioconda"]
 name = "commec-dev"
 platforms = ["osx-64", "linux-64"]
 version = "0.1.0"
+preview = ["pixi-build"]
 
 [tasks]
 
