@@ -26,3 +26,33 @@ pytaxonkit = "*"
 pyyaml = "*"
 pytest = "*"
 matplotlib = "*"
+
+[package]
+name = "commec"
+version = "0.1.0"
+
+[package.build]
+backend = { name = "setuptools.build_meta", version = "0.*" }
+
+[package.host-dependencies]
+# whatever your pyproject.toml build-system requires, e.g.:
+setuptools = ">= 61.0"        # or setuptools, poetry-core, etc. — match your pyproject.toml
+
+[package.run-dependencies]
+# runtime deps needed when someone installs *just* the commec package
+python = ">=3.10,<3.14"
+blast = ">=2.17"
+diamond = ">=2.1"
+hmmer = "*"
+infernal = "*"
+plotly = "*"
+yaml = "*"
+mako = "*"
+wget = "*"
+biopython = "*"
+numpy = "*"
+pandas = "*"
+pytaxonkit = "*"
+pyyaml = "*"
+pytest = "*"
+matplotlib = "*"
