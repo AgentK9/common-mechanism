@@ -36,7 +36,7 @@ backend = { name = "setuptools.build_meta", version = "0.*" }
 
 [package.host-dependencies]
 # whatever your pyproject.toml build-system requires, e.g.:
-setuptools = ">= 61.0"        # or setuptools, poetry-core, etc. — match your pyproject.toml
+setuptools = ">=61.0"        # or setuptools, poetry-core, etc. — match your pyproject.toml
 
 [package.run-dependencies]
 # runtime deps needed when someone installs *just* the commec package
