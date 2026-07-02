@@ -1,0 +1,28 @@
+[workspace]
+authors = ["@birtdata.com <kbirt@birtdata.com>"]
+channels = ["conda-forge", "bioconda"]
+name = "commec-dev"
+platforms = ["osx-64", "linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = ">=3.10"
+blast = ">=2.17"
+diamond = ">=2.1"
+hmmer = "*"
+infernal = "*"
+plotly = "*"
+yaml = "*"
+mako = "*"
+wget = "*"
+
+[pypi-dependencies]
+biopython = "*"
+numpy = "*"
+pandas = "*"
+pytaxonkit = "*"
+pyyaml = "*"
+pytest = "*"
+matplotlib = "*"
