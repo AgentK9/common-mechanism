@@ -33,7 +33,7 @@ name = "commec"
 version = "0.1.0"
 
 [package.build]
-backend = { name = "setuptools.build_meta", version = "0.*" }
+backend = { name = "pixi-build-python", version = "0.*" }
 
 [package.host-dependencies]
 # whatever your pyproject.toml build-system requires, e.g.:
