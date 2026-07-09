@@ -27,6 +27,7 @@ pytaxonkit = "*"
 pyyaml = "*"
 pytest = "*"
 matplotlib = "*"
+pycountry = "*"
 
 [package]
 name = "commec"
