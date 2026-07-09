@@ -9,7 +9,6 @@ Also contains the abstract base class for blastX/N/Diamond database search handl
 import os
 import logging
 from typing import BinaryIO, TextIO
-import pytaxonkit
 import pandas as pd
 import numpy as np
 import commec.control_list as cl
