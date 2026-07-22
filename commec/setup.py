@@ -821,6 +821,7 @@ def check_for_updates(config: dict) -> tuple[bool, dict[str, CommecDatabaseUpdat
 
     return input_options
 
+
 class CommecSetup:
     def __init__(self, args):
         working_directory = Path()
@@ -834,11 +835,15 @@ class CommecSetup:
             working_directory = expand_and_normalize(args.database_dir)
         if args.yaml_file:
             self.config = read_config_yaml_for_database_setup(args.yaml_file)
-            working_directory = expand_and_normalize(self.config.get("base_paths").get("default"))
+            working_directory = expand_and_normalize(
+                self.config.get("base_paths").get("default")
+            )
             self.yaml_mode = True
-            for database_name, database_info in self.config.get("databases","").items():
+            for database_name, database_info in self.config.get(
+                "databases", ""
+            ).items():
                 # The biorisk database points directly to the .hmm, whereas other
-                # databases don't. It is best to just detect suffix, and remove, as 
+                # databases don't. It is best to just detect suffix, and remove, as
                 # checking on name would affect other databases too.
                 db_path = Path(database_info.get("path"))
                 fileless_path = db_path.parent if db_path.suffix else db_path
@@ -847,14 +852,18 @@ class CommecSetup:
 
         # Ensure working_directory is a valid path (even if it doesn't exist yet)
         if not check_directory_is_writable(working_directory):
-            print(f"{ERROR_CHECK}Failed to parse working directory: {working_directory}")
+            print(
+                f"{ERROR_CHECK}Failed to parse working directory: {working_directory}"
+            )
 
         # Fetch latest.json from R2.abs
         print(f"{STEP}Fetching latest commec database revision information ...")
         latest = fetch_latest_revisions()
 
         if not latest:
-            print(f"{ERROR_CHECK} Could not fetch latest revisions. Check internet connection and try again.")
+            print(
+                f"{ERROR_CHECK} Could not fetch latest revisions. Check internet connection and try again."
+            )
             return
 
         # For each database, create an updater.
@@ -862,31 +871,36 @@ class CommecSetup:
         for database_name, revision in databases.items():
             updater = updaters.get(database_name)
             if not updater:
-                download_location = os.path.join(working_directory,database_name)
+                download_location = os.path.join(working_directory, database_name)
                 updater = CommecDatabaseUpdater(download_location)
                 updaters[database_name] = updater
                 if self.yaml_mode:
-                    print(f"{ERROR_CHECK}{database_name} not present in provided configuration yaml, it may be out of date.")
+                    print(
+                        f"{ERROR_CHECK}{database_name} not present in provided configuration yaml, it may be out of date."
+                    )
             updater.name = database_name
             updater.check_for_update(revision)
 
         # Check or ophaned databases:
         for db_name, updater in updaters.items():
             if not db_name in databases.keys():
-                print(f"{ERROR_CHECK}{db_name} has no formal update route. Input yaml has deprecated database entries.")
+                print(
+                    f"{ERROR_CHECK}{db_name} has no formal update route. Input yaml has deprecated database entries."
+                )
                 updater.update_required = False
 
         # Each updater, reports on its status, does it need to update?
         print(f"{STEP}The following actions have been identified ...")
         for _db_name, updater in updaters.items():
-            print(BULLET,updater.update_message)
+            print(BULLET, updater.update_message)
 
         # Log output of intended changes.
         if args.dry_run:
             print(
-                f"\n{C_F_GRAY}This was a dry run. Run {C_F_ORANGE}\'commec"
-                f" setup\'{C_F_GRAY} again without {C_F_ORANGE}\'-r\'{C_F_GRAY}"
-                f" to continue with the update.{C_RESET}")
+                f"\n{C_F_GRAY}This was a dry run. Run {C_F_ORANGE}'commec"
+                f" setup'{C_F_GRAY} again without {C_F_ORANGE}'-r'{C_F_GRAY}"
+                f" to continue with the update.{C_RESET}"
+            )
             return
 
         # Perform the database updates, consider making this async.
@@ -896,13 +910,20 @@ class CommecSetup:
 
         # Create example config.yaml if we only passed a directory.
         if not self.yaml_mode:
-            self.config["base_paths"]["default"] = str(Path(working_directory).resolve())
+            self.config["base_paths"]["default"] = str(
+                Path(working_directory).resolve()
+            )
             output_yaml_filepath = os.path.join(working_directory, "config.yaml")
-            with open(output_yaml_filepath, 'w', encoding="utf-8") as output_config_file:
+            with open(
+                output_yaml_filepath, "w", encoding="utf-8"
+            ) as output_config_file:
                 yaml.safe_dump(self.config, output_config_file)
-            print(f"{STEP}An example config.yaml for commec was created in the provided directory.")
+            print(
+                f"{STEP}An example config.yaml for commec was created in the provided directory."
+            )
 
         print(f"{STEP}Update check complete! Have a Biosafe-and-secure day!")
+
 
 def fetch_supported_revisions() -> dict | None:
     """
@@ -915,14 +936,22 @@ def fetch_supported_revisions() -> dict | None:
     Returns a dictionary where each database key contains the tuple:
     (min, max) where max is non-inclusive. Fulfilling the ">=min, <max" logic.
     """
-    data_filename = importlib.resources.files("commec").joinpath("database_compatibility.yaml")
+    data_filename = importlib.resources.files("commec").joinpath(
+        "database_compatibility.yaml"
+    )
     supported_revision_data = YamlIO.load_config_from_yaml(data_filename)
-    for db_name, revision_string in supported_revision_data["supported_database_revisions"].items():
+    for db_name, revision_string in supported_revision_data[
+        "supported_database_revisions"
+    ].items():
         # Expects the following str format: ">=1.0,<2.0"
-        major_min = revision_string.split(",")[0].split(".")[0][2:]+".0"
-        major_max = revision_string.split(",")[1].split(".")[0][1:]+".0"
-        supported_revision_data[db_name] = (DatabaseRevision(major_min), DatabaseRevision(major_max))
+        major_min = revision_string.split(",")[0].split(".")[0][2:] + ".0"
+        major_max = revision_string.split(",")[1].split(".")[0][1:] + ".0"
+        supported_revision_data[db_name] = (
+            DatabaseRevision(major_min),
+            DatabaseRevision(major_max),
+        )
     return supported_revision_data
+
 
 def fetch_latest_revisions() -> dict | None:
     """
@@ -940,12 +969,14 @@ def fetch_latest_revisions() -> dict | None:
         print(f"Invalid JSON in latest.json manifest: {e}")
         return None
 
+
 class CommecDatabaseUpdater:
     """
     Utility class, performs an update for a particular database.
     Handles fetching, writing, and version management.
     """
-    def __init__(self, existing_location : os.PathLike):
+
+    def __init__(self, existing_location: os.PathLike):
         self.name = None
         self.write_location = existing_location
         self.existing_revision = None
@@ -963,8 +994,10 @@ class CommecDatabaseUpdater:
 
     @property
     def update_message(self):
-        return (self.__update_message or
-                f"{C_F_ORANGE}Unidentified{C_RESET} database \"{self.name}\" has no update option.")
+        return (
+            self.__update_message
+            or f'{C_F_ORANGE}Unidentified{C_RESET} database "{self.name}" has no update option.'
+        )
 
     def read_manifest(self):
         """
@@ -979,21 +1012,26 @@ class CommecDatabaseUpdater:
                 self.name = manifest["component"]
                 self.existing_revision = DatabaseRevision(manifest["revision"])
             except json.JSONDecodeError as e:
-                print(f"{C_F_ORANGE}{C_BOLD}X{C_RESET} Issue reading {manifest_filename} : {e}")
+                print(
+                    f"{C_F_ORANGE}{C_BOLD}X{C_RESET} Issue reading {manifest_filename} : {e}"
+                )
         return
 
-    def check_for_update(self, latest_revision : str):
+    def check_for_update(self, latest_revision: str):
         self.latest_revision = DatabaseRevision(latest_revision)
 
         # Database not supported.
-        min_revision, max_revision = fetch_supported_revisions().get(self.name, (None,None))
+        min_revision, max_revision = fetch_supported_revisions().get(
+            self.name, (None, None)
+        )
         if min_revision:
             if self.latest_revision >= max_revision:
                 print(
                     f"{ERROR_CHECK}Version {VERSION} of commec supports "
                     f"to {self.name} <{str(max_revision)} and does not support"
                     f" revision {str(max_revision)}.  "
-                    f"\n   We recommend {C_F_ORANGE}you update commec{C_RESET}, and rerun this setup.")
+                    f"\n   We recommend {C_F_ORANGE}you update commec{C_RESET}, and rerun this setup."
+                )
                 self.update_required = False
                 self.__update_message = f"{C_F_ORANGE}commec package out of date{C_RESET} for latest {self.name} (revision {latest_revision})"
                 return
@@ -1009,7 +1047,7 @@ class CommecDatabaseUpdater:
             self.__update_message = f"{self.name} ({self.existing_revision}) will be {C_F_ORANGE}updated{C_RESET} to revision {latest_revision}."
             self.update_required = True
             return
-        
+
         # Database is up to date.
         self.__update_message = f"{self.name}: revision {self.existing_revision}. {C_F_ORANGE}Up to date!{C_RESET}"
         self.update_required = False
@@ -1018,10 +1056,10 @@ class CommecDatabaseUpdater:
     def perform_update(self):
         if not self.update_required:
             return
-        
+
         os.makedirs(self.write_location, exist_ok=True)
 
-        #print(f"{C_F_GRAY} Removing existing {self.name} ...")
+        # print(f"{C_F_GRAY} Removing existing {self.name} ...")
         # Get a list of existing files at the location
 
         print(f"{STEP}Downloading latest {self.name} ... ")
@@ -1035,14 +1073,14 @@ class CommecDatabaseUpdater:
 
         # Download tar from R2 self.fetch_location.
         download_success = save_r2_object(tar_fetch_location, tar_write_location)
-        
+
         if not download_success:
             print(f"{ERROR_CHECK}Failed to download {self.name} ... ")
             return
 
         # Extract the Database tar.
         # Stdlib tarfile only gained native zstd support ('r:zst') in
-        # Python 3.14 (PEP 784); this project caps at 3.13 due snakemake 
+        # Python 3.14 (PEP 784); this project caps at 3.13 due snakemake
         # benchmarking compatibility so we shell out to a locally installed tar
         # binary (with zstd support) rather than pull in a Python version dependency.
         print(f"{STEP}Extracting {self.name} database ... ")
@@ -1054,63 +1092,72 @@ class CommecDatabaseUpdater:
             return
 
         # Remove the tar
-        #os.remove(tar_write_location)
+        # os.remove(tar_write_location)
 
         # Write updated local manifest.
         manifest_data = {
-            "component" : str(self.name),
-            "revision" : str(self.latest_revision),
+            "component": str(self.name),
+            "revision": str(self.latest_revision),
         }
-        with open(manifest_write_location, mode='w', encoding = "utf-8") as manifest_json:
-            json.dump(manifest_data, manifest_json, indent = 2)
+        with open(manifest_write_location, mode="w", encoding="utf-8") as manifest_json:
+            json.dump(manifest_data, manifest_json, indent=2)
 
         return
+
 
 @dataclass
 class DatabaseRevision:
     """
-    We don't have full semantic verisioning for databases, instead we use a 
+    We don't have full semantic verisioning for databases, instead we use a
     revision system, i.e. 1.2, where the first number increments on breaking
     changes that require a commec update, and minor revisions increment the
     second number.
     """
-    major : int = 0
-    minor : int = 0
-    def __init__(self, input_string : str = str("0.0")):
+
+    major: int = 0
+    minor: int = 0
+
+    def __init__(self, input_string: str = str("0.0")):
         extraction = input_string.split(".")
         if len(extraction) == 2:
             self.major, self.minor = extraction
             return
-        raise ValueError("Expected \"X.X\" string as input for Database Revision.")
+        raise ValueError('Expected "X.X" string as input for Database Revision.')
+
     def __eq__(self, other):
-        return (self.major == other.major 
-                and self.minor == other.minor)
+        return self.major == other.major and self.minor == other.minor
+
     def __lt__(self, other):
         if not isinstance(other, DatabaseRevision):
             return NotImplemented
         if self.major == other.major:
             return self.minor < other.minor
         return self.major < other.major
+
     def __gt__(self, other):
         if not isinstance(other, DatabaseRevision):
             return NotImplemented
         if self.major == other.major:
             return self.minor > other.minor
         return self.major > other.major
+
     def __le__(self, other):
         if not isinstance(other, DatabaseRevision):
             return NotImplemented
         if self.major == other.major:
             return self.minor <= other.minor
         return self.major <= other.major
+
     def __ge__(self, other):
         if not isinstance(other, DatabaseRevision):
             return NotImplemented
         if self.major == other.major:
             return self.minor >= other.minor
         return self.major >= other.major
+
     def __str__(self):
         return f"{self.major}.{self.minor}"
+
 
 def fetch_r2_object(
     object_path: str,
@@ -1120,7 +1167,7 @@ def fetch_r2_object(
     retry_delay: float = 2.0,
 ) -> bytes | None:
     """
-    CURRENTLY only used for the latest.json, we need to use something more robust for 
+    CURRENTLY only used for the latest.json, we need to use something more robust for
     the larger files.
 
     Download a single object from the R2 bucket, retrying transient
@@ -1141,7 +1188,9 @@ def fetch_r2_object(
             with request.urlopen(req, timeout=timeout) as response:
                 if response.status == 200:
                     return response.read()
-                print(f"{ERROR_CHECK}HTTP error fetching {url}: status {response.status}")
+                print(
+                    f"{ERROR_CHECK}HTTP error fetching {url}: status {response.status}"
+                )
         except error.HTTPError as e:
             print(f"{ERROR_CHECK}HTTP Error fetching {url}: {e.code} - {e.reason}")
             if 400 <= e.code < 500:
@@ -1153,6 +1202,7 @@ def fetch_r2_object(
             time.sleep(retry_delay * attempt)
 
     return None
+
 
 def save_r2_object(
     object_path: str,
@@ -1183,7 +1233,9 @@ def save_r2_object(
     expected_sha256_raw = fetch_r2_object(f"{object_path}.sha256")
     expected_sha256 = None
     if expected_sha256_raw is None:
-        print(f"{ERROR_CHECK}Could not fetch checksum for {object_path}, proceeding without verification.")
+        print(
+            f"{ERROR_CHECK}Could not fetch checksum for {object_path}, proceeding without verification."
+        )
         return False
     else:
         expected_sha256 = expected_sha256_raw.decode("utf-8").strip().split()[0]
@@ -1196,7 +1248,9 @@ def save_r2_object(
         try:
             with request.urlopen(req, timeout=None) as response:
                 if response.status != 200:
-                    print(f"{ERROR_CHECK}HTTP error fetching {url}: status {response.status}")
+                    print(
+                        f"{ERROR_CHECK}HTTP error fetching {url}: status {response.status}"
+                    )
                 else:
                     total_size = int(response.getheader("Content-Length") or 0)
                     downloaded = 0
@@ -1214,7 +1268,7 @@ def save_r2_object(
                             if now - last_progress_time >= progress_interval:
                                 print_progress(downloaded, total_size)
                                 last_progress_time = now
-                    
+
                     # Always print a finished bar!
                     print_progress(downloaded, total_size)
                     print()
@@ -1238,6 +1292,7 @@ def save_r2_object(
     destination_path.unlink(missing_ok=True)
     return False
 
+
 def print_progress(downloaded: int, total_size: int) -> None:
     """
     Render an in-place, single-line progress indicator to stdout.
@@ -1260,18 +1315,21 @@ def print_progress(downloaded: int, total_size: int) -> None:
         suffix = f" {fraction * 100:5.1f}% ({downloaded_mb:7.1f}/{total_mb:7.1f} MB)"
         bar_width = max(80 - len(suffix) - 2, 10)
         filled = int(bar_width * fraction)
-        bar = C_F_ORANGE + "●" * filled + C_F_BLUE + "•" * (bar_width - filled) + C_RESET
+        bar = (
+            C_F_ORANGE + "●" * filled + C_F_BLUE + "•" * (bar_width - filled) + C_RESET
+        )
         line = f"[{bar}]{C_F_GRAY}{suffix}{C_RESET}"
 
     sys.stdout.write(f"\033[2K\r{line}")
     sys.stdout.flush()
 
-def read_config_yaml_for_database_setup(config_yaml_filepath : os.PathLike | str):
+
+def read_config_yaml_for_database_setup(config_yaml_filepath: os.PathLike | str):
     """
     Reads a config yaml, updated from the defaults, and parses the output for
     the control_list directory as per a commec screen run. Used instead of passing
     the directory of the control list
-    
+
     :param config_yaml_filepath: Description
     :type config_yaml_filepath: os.PathLike | str
     """
@@ -1279,25 +1337,30 @@ def read_config_yaml_for_database_setup(config_yaml_filepath : os.PathLike | str
     output_config = None
 
     # Read package-level configuration defaults
-    default_yaml = importlib.resources.files("commec").joinpath(DEFAULT_CONFIG_YAML_PATH)
+    default_yaml = importlib.resources.files("commec").joinpath(
+        DEFAULT_CONFIG_YAML_PATH
+    )
     if default_yaml.exists():
         output_config = YamlIO.load_config_from_yaml(str(default_yaml))
     else:
         raise FileNotFoundError(
             f"No default yaml found. Expected at {DEFAULT_CONFIG_YAML_PATH}"
-            )
+        )
 
     # Override configuration with any in user-provided YAML file
     if os.path.exists(config_yaml_filepath):
-        output_config = YamlIO.update_config_from_yaml(output_config, config_yaml_filepath)
+        output_config = YamlIO.update_config_from_yaml(
+            output_config, config_yaml_filepath
+        )
 
     output_config = YamlIO.format_config_paths(output_config)
 
     return output_config
 
+
 def check_directory_is_writable(input_directory: str) -> str:
     """
-    Checks a directory is viable by 
+    Checks a directory is viable by
     * Expanding terminal variables, user, and resolving the full path and
     * Checking if it exists or
     * Creating it and destroying it.
@@ -1310,27 +1373,31 @@ def check_directory_is_writable(input_directory: str) -> str:
     # Catches accidental ~/commec-dbs/ vs ~commec-dbs/ when theres no commec-dbs username.
     try:
         path = path.expanduser()
-    except(RuntimeError):
-        print("User expansion for path failed, ensure you are using"
-                " \"~/\" for self, or a valid user with \"~username/\".")
+    except RuntimeError:
+        print(
+            "User expansion for path failed, ensure you are using"
+            ' "~/" for self, or a valid user with "~username/".'
+        )
         return ""
 
     try:
         path = path.resolve()
-    except(RuntimeError):
+    except RuntimeError:
         return ""
 
     if path.exists():
         return path
-    
+
     if path.is_reserved():
         print("This path contains reserved characters for this Operating System.")
         return ""
-    
+
     # Handily, all sorts of special characters are identified with a %XX, within posix, and are replaced
     # by similar characters during mkdir, whilst technically legal, lets recommend against cursed dir names.
-    if '%' in path.as_posix():
-        print("Please avoid using special characters (\"|}{\":?><*&\" etc) in filepath names.")
+    if "%" in path.as_posix():
+        print(
+            'Please avoid using special characters ("|}{":?><*&" etc) in filepath names.'
+        )
         return ""
 
     # If the path doesn't exist, the best way to know if user input is valid, is to try make it.
@@ -1351,6 +1418,7 @@ def check_directory_is_writable(input_directory: str) -> str:
             pass
         return path
     return ""
+
 
 def run(arguments):
     """Entry point for CommecSetup"""
