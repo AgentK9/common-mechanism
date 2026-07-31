@@ -4,126 +4,423 @@ on:
   workflow_dispatch:
     inputs:
       release_branch:
-        description: 'Branch to release (e.g. release_v1.2.3)'
+        description: 'Branch to release (e.g. release-v1.2.3)'
         required: true
         type: string
       version_string:
-        description: 'Version string (e.g. 1.2.3)'
+        description: 'Version string, no v prefix (e.g. 1.2.3)'
         required: true
         type: string
-        
-permissions:
-  contents: write
-  pull-requests: write
+      publish_to_ibbis:
+        description: 'Publish the built package to the ibbis anaconda.org channel'
+        required: false
+        default: true
+        type: boolean
+      open_bioconda_pr:
+        description: 'Open a version-bump PR against bioconda/bioconda-recipes'
+        required: false
+        default: true
+        type: boolean
+      mulled_test:
+        description: 'Also run the bioconda mulled (container) test after building'
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+env:
+  PACKAGE: commec
+  ANACONDA_CHANNEL: ibbis
+  BIOCONDA_FORK: ibbis-bio/bioconda-recipes
+
+concurrency:
+  group: release-${{ inputs.version_string }}
+  cancel-in-progress: false
 
 jobs:
-  release:
+  # 1. Bring every version string in the repo up to the release version.
+  bump-version:
+    name: Bump version strings
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.check.outputs.version }}
     steps:
-      - name: Check token permissions
-        run: gh auth status
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+      - name: Validate version string
+        id: check
+        run: |
+          set -euo pipefail
+          ver="${{ inputs.version_string }}"
+          if ! printf '%s' "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([a-z0-9.]+)?$'; then
+            echo "::error::'$ver' is not a bare semantic version (expected e.g. 1.2.3, no 'v' prefix)."
+            exit 1
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+
       - name: Checkout release branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.release_branch }}
+          ref: ${{ inputs.release_branch }}
 
-      #- name: Set up Python
-      #  uses: actions/setup-python@v5
-      #  with:
-      #    python-version: '3.11'
-
-      - name: Check and update pyproject.toml version
+      - name: Update pyproject.toml, conda recipe and functional test data
         run: |
-          ver="${{ github.event.inputs.version_string }}"
-          current=$(grep "^version = '" pyproject.toml | head -n1 | cut -d"'" -f2)
-          if [ "$current" != "$ver" ]; then
-            sed -i "s/^version = '.*'/version = '$ver'/" pyproject.toml
-            echo "updated_pyproject=true" >> $GITHUB_ENV
-          fi
+          set -euo pipefail
+          ver="${{ steps.check.outputs.version }}"
 
-      - name: Check and update conda meta.yaml version
-        run: |
-          ver="${{ github.event.inputs.version_string }}"
-          current=$(grep '{% set version = "' conda-recipe/meta.yaml | head -n1 | cut -d'"' -f2)
-          if [ "$current" != "$ver" ]; then
-            sed -i "s/{% set version = \".*\" %}/{% set version = \"$ver\" %}/" conda-recipe/meta.yaml
-            echo "updated_meta=true" >> $GITHUB_ENV
-          fi
+          sed -i -E "s/^version = ['\"].*['\"]/version = '$ver'/" pyproject.toml
+          sed -i "s/^{% set version = .*/{% set version = \"$ver\" %}/" conda-recipe/meta.yaml
 
-      - name: Update functional test JSON with new version
-        if: env.updated_pyproject == 'true'
-        run: |
-          ver="${{ github.event.inputs.version_string }}"
           json_file="commec/tests/test_data/functional.json"
-          
-          if [ -f "$json_file" ]; then
-            # Use jq to replace the version field safely
-            tmpfile=$(mktemp)
-            jq --arg ver "$ver" '.commec_info.commec_version = $ver' "$json_file" > "$tmpfile" && mv "$tmpfile" "$json_file"
-            echo "Updated commec_version in $json_file to $ver"
-          else
-            echo "File $json_file not found!"
+          tmp=$(mktemp)
+          jq --arg ver "$ver" '.commec_info.commec_version = $ver' "$json_file" > "$tmp"
+          mv "$tmp" "$json_file"
+
+          # Fail loudly rather than releasing a half-bumped tree.
+          grep -qF "version = '$ver'" pyproject.toml
+          grep -qF "{% set version = \"$ver\" %}" conda-recipe/meta.yaml
+          test "$(jq -r '.commec_info.commec_version' "$json_file")" = "$ver"
+          echo "All version strings now read $ver"
+
+      - name: Commit and push (if anything changed)
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Version strings already at ${{ inputs.version_string }}; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml conda-recipe/meta.yaml commec/tests/test_data/functional.json
+          git commit -m "Update version texts to ${{ inputs.version_string }}"
+          git push origin "HEAD:${{ inputs.release_branch }}"
+
+  # 2. Tag the release. Everything downstream hashes the tag's source archive.
+  tag-release:
+    name: Tag release
+    needs: bump-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Create and push tag
+        run: |
+          set -euo pipefail
+          tag="v${{ needs.bump-version.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::notice::Tag $tag already exists on origin; leaving it untouched."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Release ${{ needs.bump-version.outputs.version }}"
+          git push origin "$tag"
+
+  # 3. Fill in the sha256 and lay the recipe out the way bioconda-utils expects,
+  #    so the lint, build and PR jobs all consume the exact same tree.
+  render-recipe:
+    name: Render recipe (version + sha256)
+    needs: [bump-version, tag-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      sha256: ${{ steps.sha.outputs.sha256 }}
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Resolve the source URL declared by the recipe
+        id: url
+        run: |
+          set -euo pipefail
+          ver="${{ needs.bump-version.outputs.version }}"
+          # Hash whatever URL the recipe actually points at, so the sha256 can
+          # never drift from the archive conda will download.
+          url=$(sed -nE 's/^[[:space:]]*url:[[:space:]]*(.+)$/\1/p' conda-recipe/meta.yaml | head -n1)
+          # Expand the recipe's jinja version placeholder, in either spacing style.
+          url=${url//\{\{version\}\}/$ver}
+          url=${url//\{\{ version \}\}/$ver}
+          echo "Source URL: $url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Download source archive and compute sha256
+        id: sha
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if curl -fsSL -o source.tar.gz "${{ steps.url.outputs.url }}"; then
+              break
+            fi
+            echo "Attempt $attempt failed; waiting for the tag archive to appear..."
+            sleep 15
+          done
+          test -s source.tar.gz
+          sha256=$(sha256sum source.tar.gz | cut -d ' ' -f1)
+          echo "sha256=$sha256"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble bioconda-style recipe tree
+        run: |
+          set -euo pipefail
+          mkdir -p workspace/recipes/"$PACKAGE"
+          cp conda-recipe/meta.yaml workspace/recipes/"$PACKAGE"/meta.yaml
+          sed -i \
+            "s|^{% set sha256 = .*|{% set sha256 = \"${{ steps.sha.outputs.sha256 }}\" %}|" \
+            workspace/recipes/"$PACKAGE"/meta.yaml
+
+          # bioconda-utils resolves both of these relative to the working dir.
+          cat > workspace/config.yml <<'YAML'
+          blacklists:
+              - "build-fail-blacklist"
+
+          # Highest to lowest priority.
+          channels:
+              - conda-forge
+              - bioconda
+          YAML
+          echo "# no skiplisted recipes" > workspace/build-fail-blacklist
+
+          echo "--- rendered recipe header ---"
+          head -n 3 workspace/recipes/"$PACKAGE"/meta.yaml
+
+      - name: Upload recipe workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: bioconda-workspace
+          path: workspace/
+          if-no-files-found: error
+
+  # 4. Lint with bioconda's own linter -- the same checks their CI will run.
+  lint-recipe:
+    name: Lint recipe (bioconda-utils)
+    needs: render-recipe
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Download recipe workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: bioconda-workspace
+          path: workspace
+
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: bioconda
+          channels: conda-forge,bioconda
+          channel-priority: strict
+
+      - name: Install bioconda-utils
+        run: conda install -y bioconda-utils
+
+      - name: bioconda-utils lint
+        working-directory: workspace
+        run: bioconda-utils lint recipes config.yml --packages "$PACKAGE"
+
+  # 5. Build the package ourselves, in bioconda's build container.
+  build-package:
+    name: Build conda package (bioconda-utils)
+    needs: render-recipe
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Download recipe workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: bioconda-workspace
+          path: workspace
+
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: bioconda
+          channels: conda-forge,bioconda
+          channel-priority: strict
+
+      - name: Install bioconda-utils
+        run: conda install -y bioconda-utils
+
+      - name: bioconda-utils build
+        working-directory: workspace
+        run: |
+          bioconda-utils build recipes config.yml \
+            --packages "$PACKAGE" \
+            --docker \
+            --force \
+            --package-dir "$GITHUB_WORKSPACE/conda-bld" \
+            ${{ inputs.mulled_test && '--mulled-test' || '' }}
+
+      - name: Show built artifacts
+        run: find conda-bld -type f \( -name '*.conda' -o -name '*.tar.bz2' \) -print
+
+      - name: Upload built package
+        uses: actions/upload-artifact@v4
+        with:
+          name: conda-package
+          path: |
+            conda-bld/**/*.conda
+            conda-bld/**/*.tar.bz2
+          if-no-files-found: error
+
+  # 6. Publish the artifact from step 5 to our own anaconda.org channel.
+  publish-ibbis:
+    name: Publish to the ibbis channel
+    if: ${{ inputs.publish_to_ibbis }}
+    needs: build-package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Download built package
+        uses: actions/download-artifact@v4
+        with:
+          name: conda-package
+          path: dist
+
+      - name: Set up conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: upload
+          channels: conda-forge
+          channel-priority: strict
+
+      - name: Install anaconda-client
+        run: conda install -y anaconda-client
+
+      - name: Upload to ${{ env.ANACONDA_CHANNEL }}
+        env:
+          ANACONDA_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANACONDA_TOKEN:-}" ]; then
+            echo "::error::ANACONDA_TOKEN is not set. Add a repository secret holding an anaconda.org token with upload rights to the '$ANACONDA_CHANNEL' org."
             exit 1
           fi
+          mapfile -t pkgs < <(find dist -type f \( -name '*.conda' -o -name '*.tar.bz2' \) | sort)
+          if [ "${#pkgs[@]}" -eq 0 ]; then
+            echo "::error::No conda packages found in the build artifact."
+            exit 1
+          fi
+          printf 'Uploading %s\n' "${pkgs[@]}"
+          anaconda --token "$ANACONDA_TOKEN" upload \
+            --user "$ANACONDA_CHANNEL" \
+            --label main \
+            --skip-existing \
+            "${pkgs[@]}"
 
-      - name: Commit version changes (if needed)
-        if: env.updated_pyproject == 'true' || env.updated_meta == 'true'
+  # 7. Only once the package really builds, ask bioconda to take the new version.
+  bioconda-pr:
+    name: Open bioconda-recipes PR
+    if: ${{ inputs.open_bioconda_pr }}
+    needs: [bump-version, render-recipe, lint-recipe, build-package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.BIOCONDA_FORK_PAT }}
+      VERSION: ${{ needs.bump-version.outputs.version }}
+    steps:
+      - name: Download recipe workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: bioconda-workspace
+          path: workspace
+
+      - name: Check the fork token is present
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add pyproject.toml conda-recipe/meta.yaml commec/tests/test_data/functional.json
-          if git commit -m "Update version texts to ${{ github.event.inputs.version_string }}"; then
-            git push origin HEAD:${{ github.event.inputs.release_branch }}
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::BIOCONDA_FORK_PAT is not set. Add a PAT with 'repo' scope that can push to $BIOCONDA_FORK and open PRs on bioconda/bioconda-recipes."
+            exit 1
+          fi
+          gh auth status
+
+      # Forks share an object store with upstream, so a ref in the fork can point
+      # straight at an upstream commit -- no need to clone 500 MB of recipes.
+      - name: Point a fork branch at upstream master
+        id: branch
+        run: |
+          set -euo pipefail
+          branch="$PACKAGE-v$VERSION"
+          base=$(gh api repos/bioconda/bioconda-recipes/git/ref/heads/master --jq .object.sha)
+          echo "Basing $branch on upstream master $base"
+          if gh api "repos/$BIOCONDA_FORK/git/ref/heads/$branch" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$BIOCONDA_FORK/git/refs/heads/$branch" \
+              -F sha="$base" -F force=true >/dev/null
           else
-            echo "No changes to commit, skipping push."
+            gh api -X POST "repos/$BIOCONDA_FORK/git/refs" \
+              -f ref="refs/heads/$branch" -f sha="$base" >/dev/null
+          fi
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Commit the updated recipe to the fork branch
+        run: |
+          set -euo pipefail
+          branch="${{ steps.branch.outputs.branch }}"
+          path="recipes/$PACKAGE/meta.yaml"
+          content=$(base64 -w0 "workspace/$path")
+
+          # Empty when the recipe does not exist upstream yet (new package).
+          blob=$(gh api "repos/$BIOCONDA_FORK/contents/$path?ref=$branch" --jq .sha 2>/dev/null || true)
+          remote=$(gh api "repos/$BIOCONDA_FORK/contents/$path?ref=$branch" --jq .content 2>/dev/null | tr -d '\n' || true)
+          if [ "$content" = "$remote" ]; then
+            echo "Recipe on $branch is already up to date; nothing to commit."
+            exit 0
           fi
 
-      - name: Tag release
-        run: |
-          git tag -a "v${{ github.event.inputs.version_string }}" -m "Release ${{ github.event.inputs.version_string }}"
-          git push origin "v${{ github.event.inputs.version_string }}"
-
-      - name: Download tar.gz from GitHub release
-        run: |
-          curl -L -o source.tar.gz https://github.com/${{ github.repository }}/archive/refs/tags/v${{ github.event.inputs.version_string }}.tar.gz
-
-      - name: Calculate SHA256
-        id: hash
-        run: |
-          sha256=$(sha256sum source.tar.gz | cut -d ' ' -f1)
-          echo "sha256=$sha256" >> $GITHUB_OUTPUT
-
-      - name: Clone bioconda fork
-        run: |
-          git clone https://github.com/ibbis-bio/bioconda-recipes.git
-          cd bioconda-recipes
-          git remote add upstream https://github.com/bioconda/bioconda-recipes.git
-          git fetch upstream
-          git reset --hard upstream/master
-          git push origin master --force
-
-      - name: Update recipe with new meta.yaml
-        run: |
-          cp conda-recipe/meta.yaml bioconda-recipes/recipes/commec/meta.yaml
-          cd bioconda-recipes
-          sed -i '3s/.*/{% set sha256 = "'"${{ steps.hash.outputs.sha256 }}"'" %}/' recipes/commec/meta.yaml
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add recipes/commec/meta.yaml
-          git commit -m "Update commec recipe to v${{ github.event.inputs.version_string }}"
-          git push origin master
+          args=(-X PUT "repos/$BIOCONDA_FORK/contents/$path"
+                -f message="Update $PACKAGE to v$VERSION"
+                -f content="$content"
+                -f branch="$branch")
+          if [ -n "$blob" ]; then
+            args+=(-f sha="$blob")
+          fi
+          gh api "${args[@]}" --jq .commit.sha
 
       - name: Create PR to bioconda upstream
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+          branch="${{ steps.branch.outputs.branch }}"
+          owner="${BIOCONDA_FORK%%/*}"
+          existing=$(gh pr list --repo bioconda/bioconda-recipes \
+            --head "$branch" --state open --json url --jq '.[0].url // empty')
+          if [ -n "$existing" ]; then
+            echo "::notice::PR already open: $existing"
+            exit 0
+          fi
+          cat > pr-body.md <<EOF
+          Updates the \`$PACKAGE\` recipe to version $VERSION.
+
+          sha256: \`${{ needs.render-recipe.outputs.sha256 }}\`
+
+          Linted and built with \`bioconda-utils\` in [this run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+          EOF
           gh pr create \
             --repo bioconda/bioconda-recipes \
-            --head ibbis-bio:master \
+            --head "$owner:$branch" \
             --base master \
-            --title "Update commec to v${{ github.event.inputs.version_string }}" \
-            --body "This PR updates the commec recipe to version ${{ github.event.inputs.version_string }}."
+            --title "Update $PACKAGE to v$VERSION" \
+            --body-file pr-body.md
